@@ -13,6 +13,7 @@ export type StudentProfile = {
   status?: string | null;
   photo_url?: string | null;
   className?: string | null;
+  joined_on?: string | null;
 };
 
 function dash(v: string | number | null | undefined) {
@@ -75,6 +76,10 @@ export function StudentProfileCard({ student }: { student: StudentProfile }) {
     {
       left: { label: "Date of Birth", value: formatDob(student.dob) },
       right: { label: "CNIC", value: student.cnic ? formatCnic(student.cnic) : "NA" },
+    },
+    {
+      left: { label: "Admission Date", value: formatDob(student.joined_on) },
+      right: { label: "Address", value: dash(student.address) },
     },
   ];
 

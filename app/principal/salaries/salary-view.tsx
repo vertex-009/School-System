@@ -571,7 +571,14 @@ export function PrincipalSalaryView({
 
         {displayedList.length === 0 ? (
           <div className="p-10 text-center text-xs text-slate-500">
-            <p className="font-bold text-slate-600">No record found</p>
+            <p className="text-sm font-bold text-slate-600">No record found</p>
+            <p className="mt-1 text-slate-400">
+              {searchQuery.trim()
+                ? `No staff matching "${searchQuery.trim()}" for ${period.label}.`
+                : statusFilter
+                  ? `No ${statusFilter} records found for ${period.label}.`
+                  : `No staff salary records found for ${period.label}.`}
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto [scrollbar-width:thin]">

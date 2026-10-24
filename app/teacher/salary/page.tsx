@@ -1,5 +1,5 @@
 import { Shell } from "@/components/shell";
-import { parsePeriod } from "@/lib/period";
+import { inEmploymentWindow, parsePeriod } from "@/lib/period";
 import { getContext } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { TeacherSalaryClient, TeacherPaymentRecord } from "./teacher-salary-client";
@@ -15,7 +15,17 @@ export default async function TeacherSalaryPage({
   const sp = searchParams ? await searchParams : undefined;
   const period = parsePeriod(sp);
 
-  const [{ data: salaryRow }, { data: thisPay }, { data: historyRows }] = await Promise.all([
+  const [
+    { data: me },
+    { data: salaryRow },
+    { data: thisPay },
+    { data: historyRows }
+  ] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("joined_on, created_at, left_on")
+      .eq("id", profile.id)
+      .maybeSingle(),
     supabase
       .from("teacher_salaries")
       .select("monthly_salary")
@@ -40,6 +50,8 @@ export default async function TeacherSalaryPage({
   ]);
 
   const monthly = Number(salaryRow?.monthly_salary || 0);
+  const joinedOn = me?.joined_on || (me as any)?.created_at || null;
+  const inWindow = inEmploymentWindow(joinedOn, me?.left_on, period);
 
   const currentPayment: TeacherPaymentRecord | null = thisPay
     ? {
@@ -70,6 +82,8 @@ export default async function TeacherSalaryPage({
         monthlySalary={monthly}
         currentPayment={currentPayment}
         history={history}
+        inWindow={inWindow}
+        joinedOn={joinedOn}
       />
     </Shell>
   );

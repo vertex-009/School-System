@@ -19,6 +19,8 @@ interface StudentData {
   guardian_phone: string | null;
   gender: string | null;
   dob: string | null;
+  joined_on?: string | null;
+  created_at?: string | null;
   address: string | null;
   admission_no: string;
   roll_no: number | null;
@@ -55,6 +57,7 @@ export function EditStudentForm({
     guardian_phone: student.guardian_phone || "",
     gender: student.gender || "",
     dob: student.dob || "",
+    joined_on: student.joined_on || (student.created_at ? student.created_at.slice(0, 10) : ""),
     address: student.address || "",
     admission_no: student.admission_no,
     roll_no: student.roll_no != null ? String(student.roll_no) : "",
@@ -181,6 +184,14 @@ export function EditStudentForm({
           name="dob"
           type="date"
           value={formData.dob}
+          onChange={handleChange}
+        />
+
+        <Field
+          label="Admission date"
+          name="joined_on"
+          type="date"
+          value={formData.joined_on}
           onChange={handleChange}
         />
 

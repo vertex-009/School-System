@@ -1,6 +1,6 @@
 import { Shell } from "@/components/shell";
 import { Back } from "@/components/ui";
-import { parsePeriod } from "@/lib/period";
+import { inEmploymentWindow, parsePeriod } from "@/lib/period";
 import { getContext } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { PrincipalSalaryView, StaffSalaryItem } from "./salary-view";
@@ -32,7 +32,7 @@ export default async function PrincipalSalariesPage({
   ] = await Promise.all([
     supabase
       .from("profiles")
-      .select("id, name, email, role, phone, joined_on, left_on, is_active")
+      .select("id, name, email, role, phone, joined_on, left_on, is_active, created_at")
       .eq("school_id", schoolId)
       .in("role", ["teacher", "finance"])
       .eq("is_active", true)
@@ -46,7 +46,7 @@ export default async function PrincipalSalariesPage({
       .eq("year", period.year),
     supabase
       .from("other_employees")
-      .select("id, name, email, job_title, phone, joined_on, left_on, is_active, monthly_salary")
+      .select("id, name, email, job_title, phone, joined_on, left_on, is_active, monthly_salary, created_at")
       .eq("school_id", schoolId)
       .eq("is_active", true)
       .order("name"),
@@ -68,9 +68,14 @@ export default async function PrincipalSalariesPage({
     (otherPayments || []).map((p) => [p.employee_id, p])
   );
 
-  // Separate Teachers
+  // Separate Teachers: show only if employed in this period (or if a payment was disbursed)
   const teachers: StaffSalaryItem[] = (staffProfiles || [])
     .filter((p) => p.role === "teacher")
+    .filter((p) => {
+      const pay = staffPaymentMap[p.id];
+      if (pay) return true;
+      return inEmploymentWindow(p.joined_on || (p as any).created_at, p.left_on, period);
+    })
     .map((p) => {
       const pay = staffPaymentMap[p.id];
       return {
@@ -79,7 +84,7 @@ export default async function PrincipalSalariesPage({
         role: "Teacher",
         email: p.email,
         phone: p.phone,
-        joined_on: p.joined_on,
+        joined_on: p.joined_on || (p as any).created_at,
         monthly_salary: salaryMap[p.id] || 0,
         isPaid: Boolean(pay),
         paymentId: pay?.id || null,
@@ -90,9 +95,14 @@ export default async function PrincipalSalariesPage({
       };
     });
 
-  // Separate Finance Staff
+  // Separate Finance Staff: show only if employed in this period (or if a payment was disbursed)
   const financeStaff: StaffSalaryItem[] = (staffProfiles || [])
     .filter((p) => p.role === "finance")
+    .filter((p) => {
+      const pay = staffPaymentMap[p.id];
+      if (pay) return true;
+      return inEmploymentWindow(p.joined_on || (p as any).created_at, p.left_on, period);
+    })
     .map((p) => {
       const pay = staffPaymentMap[p.id];
       return {
@@ -101,7 +111,7 @@ export default async function PrincipalSalariesPage({
         role: "Finance Officer",
         email: p.email,
         phone: p.phone,
-        joined_on: p.joined_on,
+        joined_on: p.joined_on || (p as any).created_at,
         monthly_salary: salaryMap[p.id] || 0,
         isPaid: Boolean(pay),
         paymentId: pay?.id || null,
@@ -112,25 +122,31 @@ export default async function PrincipalSalariesPage({
       };
     });
 
-  // Map Other Employees
-  const otherEmployees: StaffSalaryItem[] = (otherEmployeesData || []).map((e) => {
-    const pay = otherPaymentMap[e.id];
-    return {
-      id: e.id,
-      name: e.name,
-      role: e.job_title || "Staff",
-      email: e.email,
-      phone: e.phone,
-      joined_on: e.joined_on,
-      monthly_salary: Number(e.monthly_salary || 0),
-      isPaid: Boolean(pay),
-      paymentId: pay?.id || null,
-      receipt: pay?.receipt_no || null,
-      paidAmount: pay ? Number(pay.amount) : null,
-      paidAt: pay?.paid_at || null,
-      method: pay?.method || null,
-    };
-  });
+  // Map Other Employees: show only if employed in this period (or if a payment was disbursed)
+  const otherEmployees: StaffSalaryItem[] = (otherEmployeesData || [])
+    .filter((e) => {
+      const pay = otherPaymentMap[e.id];
+      if (pay) return true;
+      return inEmploymentWindow(e.joined_on || (e as any).created_at, e.left_on, period);
+    })
+    .map((e) => {
+      const pay = otherPaymentMap[e.id];
+      return {
+        id: e.id,
+        name: e.name,
+        role: e.job_title || "Staff",
+        email: e.email,
+        phone: e.phone,
+        joined_on: e.joined_on || (e as any).created_at,
+        monthly_salary: Number(e.monthly_salary || 0),
+        isPaid: Boolean(pay),
+        paymentId: pay?.id || null,
+        receipt: pay?.receipt_no || null,
+        paidAmount: pay ? Number(pay.amount) : null,
+        paidAt: pay?.paid_at || null,
+        method: pay?.method || null,
+      };
+    });
 
   return (
     <Shell role="principal" title="Disburse Staff Salaries">

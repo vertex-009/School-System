@@ -92,6 +92,7 @@ export default async function StudentDetailPage({
             address: student.address,
             status: student.status,
             className: classNameOf(student.sections),
+            joined_on: (student as any).joined_on || (student as any).created_at || null,
           }}
         />
       </section>

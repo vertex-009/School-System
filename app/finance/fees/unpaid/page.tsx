@@ -2,7 +2,7 @@ import { Shell } from "@/components/shell";
 import { NoHistory, PeriodFilter } from "@/components/period-filter";
 import { Card } from "@/components/ui";
 import { pkr } from "@/lib/format";
-import { parsePeriod } from "@/lib/period";
+import { parsePeriod, toMonthKey } from "@/lib/period";
 import { getContext } from "@/lib/session";
 import { redirect } from "next/navigation";
 
@@ -18,14 +18,22 @@ export default async function UnpaidPage({
 
   const { data: invoices } = await supabase
     .from("fee_invoices")
-    .select("id, month, year, amount, discount, paid_amount, status, due_date, students(name, admission_no, guardian_phone)")
+    .select("id, month, year, amount, discount, paid_amount, status, due_date, students(name, admission_no, guardian_phone, created_at, joined_on)")
     .eq("school_id", schoolId)
     .eq("month", period.month)
     .eq("year", period.year)
     .in("status", ["unpaid", "partial"])
     .order("due_date");
 
-  const list = invoices || [];
+  const periodKey = period.year * 12 + period.month;
+  const list = (invoices || []).filter((inv) => {
+    const s = inv.students as { created_at?: string; joined_on?: string } | null;
+    const joinDate = s?.joined_on || s?.created_at;
+    if (!joinDate) return true;
+    const joinKey = toMonthKey(joinDate);
+    if (joinKey == null) return true;
+    return periodKey >= joinKey;
+  });
 
   return (
     <Shell role="finance" title="Unpaid list">

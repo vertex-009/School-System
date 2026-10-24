@@ -14,7 +14,7 @@ export default async function StudentViewPage({ params }: { params: Promise<{ id
   let { data: student, error } = await supabase
     .from("students")
     .select(
-      "id, name, admission_no, father_name, guardian_phone, gender, dob, address, roll_no, status, cnic, admission_fee, monthly_fee, transport_fee, misc_fee, discount, section_id, sections(name, class_id, classes(name))"
+      "id, name, admission_no, father_name, guardian_phone, gender, dob, address, roll_no, status, cnic, created_at, joined_on, admission_fee, monthly_fee, transport_fee, misc_fee, discount, section_id, sections(name, class_id, classes(name))"
     )
     .eq("id", id)
     .eq("school_id", schoolId)
@@ -23,7 +23,7 @@ export default async function StudentViewPage({ params }: { params: Promise<{ id
   if (error || !student) {
     const fallback = await supabase
       .from("students")
-      .select("id, name, admission_no, father_name, guardian_phone, gender, dob, address, roll_no, status, sections(name, classes(name))")
+      .select("id, name, admission_no, father_name, guardian_phone, gender, dob, address, roll_no, status, created_at, joined_on, sections(name, classes(name))")
       .eq("id", id)
       .eq("school_id", schoolId)
       .maybeSingle();
@@ -61,6 +61,7 @@ export default async function StudentViewPage({ params }: { params: Promise<{ id
             status: student.status,
             photo_url: (student as { photo_url?: string | null }).photo_url || null,
             className: classNameOf(student.sections),
+            joined_on: (student as any).joined_on || (student as any).created_at || null,
           }}
         />
 

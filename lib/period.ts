@@ -41,9 +41,18 @@ export function periodBounds(month: number, year: number) {
   return { monthStart, monthEnd, dayStart, dayEnd };
 }
 
-function toMonthKey(isoDate: string): number | null {
-  // Accept YYYY-MM-DD or full ISO timestamp
-  const d = new Date(isoDate.length === 10 ? `${isoDate}T12:00:00` : isoDate);
+export function toMonthKey(isoDate: string | null | undefined): number | null {
+  if (!isoDate) return null;
+  const s = String(isoDate).trim();
+  const m = s.match(/^(\d{4})-(\d{2})/);
+  if (m) {
+    const year = parseInt(m[1], 10);
+    const month = parseInt(m[2], 10);
+    if (year >= 1900 && month >= 1 && month <= 12) {
+      return year * 12 + month;
+    }
+  }
+  const d = new Date(s.length === 10 ? `${s}T12:00:00` : s);
   if (Number.isNaN(d.getTime())) return null;
   return d.getFullYear() * 12 + (d.getMonth() + 1);
 }
@@ -60,7 +69,7 @@ export function activeFromMonth(createdAt: string | null | undefined, period: Pe
 export function inEmploymentWindow(
   joinedOn: string | null | undefined,
   leftOn: string | null | undefined,
-  period: Period
+  period: Period | { month: number; year: number; isFuture?: boolean }
 ): boolean {
   if (period.isFuture) return false;
   if (!joinedOn) return false;
@@ -73,6 +82,21 @@ export function inEmploymentWindow(
     if (leftKey != null && periodKey > leftKey) return false;
   }
   return true;
+}
+
+/**
+ * Student fee visible only from admission/joining month onwards.
+ * If period month is prior to student join month, returns false.
+ */
+export function inEnrollmentWindow(
+  joinedOn: string | null | undefined,
+  period: { month: number; year: number }
+): boolean {
+  if (!joinedOn) return true;
+  const joinKey = toMonthKey(joinedOn);
+  if (joinKey == null) return true;
+  const periodKey = period.year * 12 + period.month;
+  return periodKey >= joinKey;
 }
 
 /** Parse required join date from form (YYYY-MM-DD). */

@@ -6,7 +6,7 @@ import { ReportPrintButton } from "@/components/report-print-button";
 import { SCHOOL } from "@/lib/brand";
 import { classNameOf } from "@/lib/class-label";
 import { MONTHS, pkr } from "@/lib/format";
-import { inEmploymentWindow, parsePeriod, periodBounds } from "@/lib/period";
+import { inEmploymentWindow, inEnrollmentWindow, parsePeriod, periodBounds, toMonthKey } from "@/lib/period";
 import { getContext } from "@/lib/session";
 import { redirect } from "next/navigation";
 import {
@@ -47,7 +47,7 @@ export default async function FinancialSummaryPage({
     supabase.from("schools").select("name, address, phone").eq("id", schoolId).maybeSingle(),
     supabase
       .from("fee_invoices")
-      .select("id, amount, discount, paid_amount, status, students(id, name, roll_no, admission_no, sections(name, classes(name)))")
+      .select("id, amount, discount, paid_amount, status, students(id, name, roll_no, admission_no, created_at, joined_on, sections(name, classes(name)))")
       .eq("school_id", schoolId)
       .eq("month", period.month)
       .eq("year", period.year),
@@ -106,8 +106,20 @@ export default async function FinancialSummaryPage({
 
   const schoolName = "City Public School";
 
+  // Filter invoices so unpaid records before a student's admission/join date are not counted or shown
+  const periodKey = period.year * 12 + period.month;
+  const validInvoices = (invoices || []).filter((inv) => {
+    if (inv.status === "paid" || Number(inv.paid_amount || 0) > 0) return true;
+    const st = inv.students as { created_at?: string; joined_on?: string } | null;
+    const joinDate = st?.joined_on || st?.created_at;
+    if (!joinDate) return true;
+    const joinKey = toMonthKey(joinDate);
+    if (joinKey == null) return true;
+    return periodKey >= joinKey;
+  });
+
   // Fees calculations
-  const billed = (invoices || []).reduce((s, i) => s + Number(i.amount) - Number(i.discount || 0), 0);
+  const billed = validInvoices.reduce((s, i) => s + Number(i.amount) - Number(i.discount || 0), 0);
   const collected = (payments || []).reduce((s, p) => s + Number(p.amount), 0);
   const collectionPct = billed > 0 ? Math.round((collected / billed) * 100) : 0;
   const uncollected = Math.max(billed - collected, 0);
@@ -194,11 +206,11 @@ export default async function FinancialSummaryPage({
 
   const qs = (t: Tab) => `/principal/fees/overview?tab=${t}&month=${period.month}&year=${period.year}`;
 
-  const feesEmpty = !(invoices || []).length && collected === 0;
+  const feesEmpty = !validInvoices.length && collected === 0;
   const expensesEmpty = !allExpenses.length;
   const salaryEmpty = period.isFuture || (!salaryRows.length && (period.isPast || period.isCurrent));
 
-  const mappedFeeInvoices: FeeInvoiceItem[] = (invoices || []).map((inv) => {
+  const mappedFeeInvoices: FeeInvoiceItem[] = validInvoices.map((inv) => {
     const student = inv.students as {
       id?: string;
       name?: string;

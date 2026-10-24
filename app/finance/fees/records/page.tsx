@@ -3,7 +3,7 @@ import { Shell } from "@/components/shell";
 import { NoHistory, PeriodFilter } from "@/components/period-filter";
 import { Card, Field, Submit } from "@/components/ui";
 import { pkr } from "@/lib/format";
-import { parsePeriod } from "@/lib/period";
+import { parsePeriod, toMonthKey } from "@/lib/period";
 import { getContext } from "@/lib/session";
 import { redirect } from "next/navigation";
 
@@ -19,13 +19,22 @@ export default async function FeeRecordsPage({
 
   const { data: invoices } = await supabase
     .from("fee_invoices")
-    .select("id, month, year, amount, discount, discount_reason, paid_amount, status, due_date, students(name, admission_no)")
+    .select("id, month, year, amount, discount, discount_reason, paid_amount, status, due_date, students(name, admission_no, created_at, joined_on)")
     .eq("school_id", schoolId)
     .eq("month", period.month)
     .eq("year", period.year)
     .order("created_at", { ascending: false });
 
-  const list = invoices || [];
+  const periodKey = period.year * 12 + period.month;
+  const list = (invoices || []).filter((inv) => {
+    if (inv.status === "paid" || Number(inv.paid_amount || 0) > 0) return true;
+    const student = inv.students as { created_at?: string; joined_on?: string } | null;
+    const joinDate = student?.joined_on || student?.created_at;
+    if (!joinDate) return true;
+    const joinKey = toMonthKey(joinDate);
+    if (joinKey == null) return true;
+    return periodKey >= joinKey;
+  });
 
   return (
     <Shell role="finance" title="Fee records">

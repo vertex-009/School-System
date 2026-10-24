@@ -19,14 +19,26 @@ export function TeacherSalaryClient({
   monthlySalary,
   currentPayment,
   history,
+  inWindow = true,
+  joinedOn = null,
 }: {
-  period: { month: number; year: number; label: string };
+  period: { month: number; year: number; label: string; isFuture?: boolean };
   monthlySalary: number;
   currentPayment: TeacherPaymentRecord | null;
   history: TeacherPaymentRecord[];
+  inWindow?: boolean;
+  joinedOn?: string | null;
 }) {
   const isPaid = Boolean(currentPayment);
   const [showHistory, setShowHistory] = useState(true);
+
+  const formattedJoinDate = joinedOn
+    ? new Date(joinedOn.length === 10 ? `${joinedOn}T12:00:00` : joinedOn).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
 
   return (
     <div className="space-y-4">
@@ -82,66 +94,82 @@ export function TeacherSalaryClient({
       </div>
 
       {/* Selected Month Salary Card */}
-      <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <span
-              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
-                isPaid ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
-              }`}
-            >
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-            </span>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-base font-black text-brand-navy">Salary Status</h3>
-                <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-700">
-                  {period.label}
-                </span>
+      {!inWindow && !currentPayment ? (
+        <div className="rounded-2xl border border-slate-200/90 bg-white p-8 text-center shadow-xs">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 mb-3">
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h3 className="text-base font-bold text-slate-700">No record found</h3>
+          <p className="mt-1 text-xs text-slate-500">
+            {formattedJoinDate
+              ? `No salary record for ${period.label}. Teacher joining date is ${formattedJoinDate}.`
+              : `No salary record found for ${period.label}.`}
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <span
+                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
+                  isPaid ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                }`}
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-black text-brand-navy">Salary Status</h3>
+                  <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-700">
+                    {period.label}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Salary: <b className="text-slate-800 tabular-nums">{pkr(monthlySalary)}</b>
+                </p>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Salary: <b className="text-slate-800 tabular-nums">{pkr(monthlySalary)}</b>
-              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {isPaid ? (
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-extrabold text-emerald-800 border border-emerald-200">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                    Paid · {pkr(Number(currentPayment?.amount || monthlySalary))}
+                  </span>
+                  <Link
+                    href={`/teacher/salary/receipt/${currentPayment?.id}`}
+                    target="_blank"
+                    className="rounded-xl bg-[#0b1f3a] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-brand-accent transition shadow-xs"
+                  >
+                    Print Receipt →
+                  </Link>
+                </div>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800 border border-amber-200">
+                  <span className="h-2 w-2 rounded-full bg-amber-500" />
+                  Unpaid
+                </span>
+              )}
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            {isPaid ? (
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-extrabold text-emerald-800 border border-emerald-200">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                  Paid · {pkr(Number(currentPayment?.amount || monthlySalary))}
-                </span>
-                <Link
-                  href={`/teacher/salary/receipt/${currentPayment?.id}`}
-                  target="_blank"
-                  className="rounded-xl bg-[#0b1f3a] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-brand-accent transition shadow-xs"
-                >
-                  Print Receipt →
-                </Link>
-              </div>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800 border border-amber-200">
-                <span className="h-2 w-2 rounded-full bg-amber-500" />
-                Unpaid
-              </span>
-            )}
-          </div>
+          {isPaid && currentPayment?.paid_at && (
+            <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] text-slate-400">
+              <span>Voucher #{currentPayment.receipt_no}</span>
+              <span>Disbursed on {new Date(currentPayment.paid_at).toLocaleDateString()}</span>
+            </div>
+          )}
         </div>
-
-        {isPaid && currentPayment?.paid_at && (
-          <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] text-slate-400">
-            <span>Voucher #{currentPayment.receipt_no}</span>
-            <span>Disbursed on {new Date(currentPayment.paid_at).toLocaleDateString()}</span>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Salary History Card with Toggle Option */}
       <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">

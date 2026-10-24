@@ -723,20 +723,27 @@ export async function saveStudent(formData: FormData) {
     discount: isNaN(discount) ? 0 : Math.max(0, discount),
   };
 
+  const joined_on_raw = formData.get("joined_on");
+  if (joined_on_raw && String(joined_on_raw).trim()) {
+    payload.joined_on = String(joined_on_raw).trim();
+  }
+
   let { data: saved, error } = id
     ? await supabase.from("students").update(payload).eq("id", id).select("id").maybeSingle()
     : await supabase.from("students").insert(payload).select("id").maybeSingle();
 
-  // If DB hasn't run the fee or discount column migration on students yet, retry without those keys
+  // If DB hasn't run the fee, discount or joined_on column migration on students yet, retry without those keys
   if (error && error.message.toLowerCase().includes("column") && (
     error.message.toLowerCase().includes("fee") ||
-    error.message.toLowerCase().includes("discount")
+    error.message.toLowerCase().includes("discount") ||
+    error.message.toLowerCase().includes("joined_on")
   )) {
     delete payload.admission_fee;
     delete payload.monthly_fee;
     delete payload.transport_fee;
     delete payload.misc_fee;
     delete payload.discount;
+    delete payload.joined_on;
     const retry = id
       ? await supabase.from("students").update(payload).eq("id", id).select("id").maybeSingle()
       : await supabase.from("students").insert(payload).select("id").maybeSingle();
@@ -1280,18 +1287,34 @@ export async function collectFeeWithArrears(formData: FormData) {
   if (!throughMonth || !throughYear) return { error: "Fee month required" };
 
   const throughKey = throughYear * 12 + throughMonth;
-  const { data: openInvoices, error: listErr } = await supabase
-    .from("fee_invoices")
-    .select("id, amount, discount, paid_amount, month, year, status")
-    .eq("school_id", schoolId)
-    .eq("student_id", studentId)
-    .in("status", ["unpaid", "partial"])
-    .order("year", { ascending: true })
-    .order("month", { ascending: true });
+  const [{ data: openInvoices, error: listErr }, { data: studentRec }] = await Promise.all([
+    supabase
+      .from("fee_invoices")
+      .select("id, amount, discount, paid_amount, month, year, status")
+      .eq("school_id", schoolId)
+      .eq("student_id", studentId)
+      .in("status", ["unpaid", "partial"])
+      .order("year", { ascending: true })
+      .order("month", { ascending: true }),
+    supabase
+      .from("students")
+      .select("created_at, joined_on")
+      .eq("id", studentId)
+      .maybeSingle(),
+  ]);
   if (listErr) return { error: listErr.message };
 
+  const { toMonthKey } = await import("@/lib/period");
+  const joinDate = (studentRec as any)?.joined_on || studentRec?.created_at;
+  const joinKey = toMonthKey(joinDate);
+
   const queue = (openInvoices || [])
-    .filter((inv) => inv.year * 12 + inv.month <= throughKey)
+    .filter((inv) => {
+      const pKey = inv.year * 12 + inv.month;
+      if (pKey > throughKey) return false;
+      if (joinKey != null && pKey < joinKey) return false;
+      return true;
+    })
     .map((inv) => {
       const due = Number(inv.amount) - Number(inv.discount || 0) - Number(inv.paid_amount || 0);
       return { id: inv.id, due: Math.max(due, 0), month: inv.month, year: inv.year };
@@ -1445,7 +1468,7 @@ export async function paySalary(formData: FormData) {
 
   const { data: person } = await supabase
     .from("profiles")
-    .select("role, joined_on, left_on, is_active")
+    .select("role, joined_on, left_on, is_active, created_at")
     .eq("id", teacherId)
     .eq("school_id", schoolId)
     .maybeSingle();
@@ -1458,7 +1481,7 @@ export async function paySalary(formData: FormData) {
   }
 
   const { inEmploymentWindow } = await import("@/lib/period");
-  if (!inEmploymentWindow(person.joined_on, person.left_on, period)) {
+  if (!inEmploymentWindow(person.joined_on || person.created_at, person.left_on, period)) {
     return { error: "No record found for this person in the selected month (before join or after leave)." };
   }
 
@@ -1620,12 +1643,12 @@ export async function payOtherEmployeeSalary(formData: FormData) {
 
   const { data: emp } = await supabase
     .from("other_employees")
-    .select("joined_on, left_on, is_active")
+    .select("joined_on, left_on, is_active, created_at")
     .eq("id", employeeId)
     .eq("school_id", schoolId)
     .maybeSingle();
   const { inEmploymentWindow } = await import("@/lib/period");
-  if (!emp || !inEmploymentWindow(emp.joined_on, emp.left_on, period)) {
+  if (!emp || !inEmploymentWindow(emp.joined_on || (emp as any).created_at, emp.left_on, period)) {
     return { error: "No record found for this employee in the selected month (before join or after leave)." };
   }
 

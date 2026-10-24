@@ -3,7 +3,7 @@ import { Shell } from "@/components/shell";
 import { classNameOf } from "@/lib/class-label";
 import { feeDueBreakdown } from "@/lib/fee-due";
 import { MONTHS, pkr } from "@/lib/format";
-import { parsePeriod } from "@/lib/period";
+import { parsePeriod, toMonthKey } from "@/lib/period";
 import { getContext } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { StudentSearchBar } from "./student-search-bar";
@@ -24,15 +24,18 @@ type InvRow = {
     admission_no?: string;
     roll_no?: number | null;
     created_at?: string;
+    joined_on?: string;
     sections?: unknown;
   } | null;
 };
 
-function admissionPeriod(createdAt?: string | null) {
-  if (!createdAt) return null;
-  const d = new Date(createdAt);
-  if (Number.isNaN(d.getTime())) return null;
-  return { month: d.getUTCMonth() + 1, year: d.getUTCFullYear() };
+function admissionPeriod(joinedOrCreated?: string | null) {
+  if (!joinedOrCreated) return null;
+  const key = toMonthKey(joinedOrCreated);
+  if (key == null) return null;
+  const year = Math.floor((key - 1) / 12);
+  const month = ((key - 1) % 12) + 1;
+  return { month, year };
 }
 
 export default async function CollectFeePage({
@@ -63,6 +66,7 @@ export default async function CollectFeePage({
     admission_no: string;
     roll_no: number | null;
     created_at: string | null;
+    joined_on?: string | null;
     sections: unknown;
   };
 
@@ -72,7 +76,7 @@ export default async function CollectFeePage({
   if (q || studentIdParam) {
     let studentQuery = supabase
       .from("students")
-      .select("id, name, father_name, admission_no, roll_no, created_at, sections(name, classes(name))")
+      .select("id, name, father_name, admission_no, roll_no, created_at, joined_on, sections(name, classes(name))")
       .eq("school_id", schoolId)
       .eq("status", "active");
 
@@ -117,7 +121,7 @@ export default async function CollectFeePage({
         .map(([sId, invs]) => {
           const student = invs[0]?.students || null;
           const sObj = studentsList.find((s) => s.id === sId);
-          const adm = admissionPeriod(sObj?.created_at || student?.created_at);
+          const adm = admissionPeriod(sObj?.joined_on || sObj?.created_at || (student as any)?.joined_on || student?.created_at);
           const summary = feeDueBreakdown(invs, {
             throughMonth: period.month,
             throughYear: period.year,

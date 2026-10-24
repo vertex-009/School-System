@@ -3,7 +3,7 @@ import { MonthSearch } from "@/components/month-search";
 import { SchoolHeroBanner } from "@/components/school-hero-banner";
 import { BarChartCard, ColumnChartCard, RingCard, StatTiles } from "@/components/dashboard-charts";
 import { pkr } from "@/lib/format";
-import { parsePeriod, periodBounds } from "@/lib/period";
+import { parsePeriod, periodBounds, toMonthKey } from "@/lib/period";
 import { getContext } from "@/lib/session";
 import { redirect } from "next/navigation";
 
@@ -33,8 +33,6 @@ async function loadPrincipalDash(
     { count: teachers },
     { count: left_students },
     { count: classes },
-    { count: paid },
-    { count: unpaid },
     { data: payRows },
     { data: invRows },
     { data: expRows },
@@ -57,20 +55,6 @@ async function loadPrincipalDash(
       .eq("status", "left"),
     supabase.from("classes").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
     supabase
-      .from("fee_invoices")
-      .select("id", { count: "exact", head: true })
-      .eq("school_id", schoolId)
-      .eq("month", month)
-      .eq("year", year)
-      .eq("status", "paid"),
-    supabase
-      .from("fee_invoices")
-      .select("id", { count: "exact", head: true })
-      .eq("school_id", schoolId)
-      .eq("month", month)
-      .eq("year", year)
-      .in("status", ["unpaid", "partial"]),
-    supabase
       .from("payments")
       .select("amount")
       .eq("school_id", schoolId)
@@ -78,7 +62,7 @@ async function loadPrincipalDash(
       .lt("paid_at", monthEnd),
     supabase
       .from("fee_invoices")
-      .select("amount, discount, paid_amount")
+      .select("id, amount, discount, paid_amount, status, students(created_at, joined_on)")
       .eq("school_id", schoolId)
       .eq("month", month)
       .eq("year", year),
@@ -90,12 +74,25 @@ async function loadPrincipalDash(
       .lt("expense_date", dayEnd),
   ]);
 
+  const periodKey = year * 12 + month;
+  const validInvRows = (invRows || []).filter((inv) => {
+    if (inv.status === "paid" || Number(inv.paid_amount || 0) > 0) return true;
+    const st = inv.students as { created_at?: string; joined_on?: string } | null;
+    const joinDate = st?.joined_on || st?.created_at;
+    if (!joinDate) return true;
+    const joinKey = toMonthKey(joinDate);
+    if (joinKey == null) return true;
+    return periodKey >= joinKey;
+  });
+
+  const paid = validInvRows.filter((r) => r.status === "paid").length;
+  const unpaid = validInvRows.filter((r) => r.status === "unpaid" || r.status === "partial").length;
   const collected = (payRows || []).reduce((s, r) => s + Number(r.amount || 0), 0);
-  const billed = (invRows || []).reduce(
+  const billed = validInvRows.reduce(
     (s, r) => s + Number(r.amount || 0) - Number(r.discount || 0),
     0
   );
-  const paid_on_invoices = (invRows || []).reduce((s, r) => s + Number(r.paid_amount || 0), 0);
+  const paid_on_invoices = validInvRows.reduce((s, r) => s + Number(r.paid_amount || 0), 0);
   const expenses = (expRows || []).reduce((s, r) => s + Number(r.amount || 0), 0);
 
   return {

@@ -34,6 +34,7 @@ export function NewStudentForm({
     guardian_phone: "",
     gender: "",
     dob: "",
+    joined_on: new Date().toISOString().slice(0, 10),
     address: "",
     admission_no: "",
     roll_no: "",
@@ -158,6 +159,14 @@ export function NewStudentForm({
           name="dob"
           type="date"
           value={formData.dob}
+          onChange={handleChange}
+        />
+
+        <Field
+          label="Admission date"
+          name="joined_on"
+          type="date"
+          value={formData.joined_on}
           onChange={handleChange}
         />
 
