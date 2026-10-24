@@ -175,11 +175,11 @@ export default async function FinanceFinancialSummaryPage({
 
   const qs = (t: Tab) => `/finance/income-vs-expenses?tab=${t}&month=${period.month}&year=${period.year}`;
 
-  const feesEmpty = !(invoices || []).length && collected === 0;
+  const feesEmpty = !(rawInvoices || []).length && collected === 0;
   const expensesEmpty = !allExpenses.length;
   const salaryEmpty = period.isFuture || (!salaryRows.length && (period.isPast || period.isCurrent));
 
-  const mappedFeeInvoices: FeeInvoiceItem[] = (invoices || []).map((inv) => {
+  const mappedFeeInvoices: FeeInvoiceItem[] = (rawInvoices || []).map((inv) => {
     const student = inv.students as {
       id?: string;
       name?: string;

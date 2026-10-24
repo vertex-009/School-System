@@ -6,8 +6,8 @@ import { ReportPrintButton } from "@/components/report-print-button";
 import { GenerateInvoicesCard } from "@/components/generate-invoices-card";
 import { SCHOOL } from "@/lib/brand";
 import { classNameOf } from "@/lib/class-label";
-import { MONTHS, pkr } from "@/lib/format";
-import { inEmploymentWindow, inEnrollmentWindow, parsePeriod, periodBounds, toMonthKey } from "@/lib/period";
+import { MONTHS } from "@/lib/format";
+import { inEmploymentWindow, parsePeriod, periodBounds } from "@/lib/period";
 import { getContext } from "@/lib/session";
 import { redirect } from "next/navigation";
 import {
@@ -36,8 +36,6 @@ export default async function FinancialSummaryPage({
     { data: school },
     { data: invoices },
     { data: payments },
-    { count: paidCount },
-    { count: unpaidCount },
     { data: expenseRows },
     { data: staff },
     { data: salaries },
@@ -48,7 +46,7 @@ export default async function FinancialSummaryPage({
     supabase.from("schools").select("name, address, phone").eq("id", schoolId).maybeSingle(),
     supabase
       .from("fee_invoices")
-      .select("id, amount, discount, paid_amount, status, students(id, name, roll_no, admission_no, created_at, joined_on, sections(name, classes(name)))")
+      .select("id, amount, discount, paid_amount, status, students(id, name, roll_no, admission_no, sections(name, classes(name)))")
       .eq("school_id", schoolId)
       .eq("month", period.month)
       .eq("year", period.year),
@@ -58,20 +56,6 @@ export default async function FinancialSummaryPage({
       .eq("school_id", schoolId)
       .gte("paid_at", monthStart)
       .lt("paid_at", monthEnd),
-    supabase
-      .from("fee_invoices")
-      .select("id", { count: "exact", head: true })
-      .eq("school_id", schoolId)
-      .eq("month", period.month)
-      .eq("year", period.year)
-      .eq("status", "paid"),
-    supabase
-      .from("fee_invoices")
-      .select("id", { count: "exact", head: true })
-      .eq("school_id", schoolId)
-      .eq("month", period.month)
-      .eq("year", period.year)
-      .in("status", ["unpaid", "partial"]),
     supabase
       .from("school_expenses")
       .select("id, title, category, amount, expense_date, kind")
@@ -114,7 +98,7 @@ export default async function FinancialSummaryPage({
     await ensureCurrentMonthInvoices(supabase, { month: period.month, year: period.year, dueDay: 10 });
     const { data: refetched } = await supabase
       .from("fee_invoices")
-      .select("id, amount, discount, paid_amount, status, students(id, name, roll_no, admission_no, created_at, joined_on, sections(name, classes(name)))")
+      .select("id, amount, discount, paid_amount, status, students(id, name, roll_no, admission_no, sections(name, classes(name)))")
       .eq("school_id", schoolId)
       .eq("month", period.month)
       .eq("year", period.year);
@@ -123,28 +107,10 @@ export default async function FinancialSummaryPage({
     }
   }
 
-  // Filter invoices so unpaid records before a student's admission/join date are not counted or shown
-  const periodKey = period.year * 12 + period.month;
-  const validInvoices = (rawInvoices || []).filter((inv) => {
-    if (inv.status === "paid" || Number(inv.paid_amount || 0) > 0) return true;
-    const st = inv.students as { created_at?: string; joined_on?: string } | null;
-    const joinDate = st?.joined_on || st?.created_at;
-    if (!joinDate) return true;
-    const joinKey = toMonthKey(joinDate);
-    if (joinKey == null) return true;
-    return periodKey >= joinKey;
-  });
-
   // Fees calculations
-  const invoiceBilled = validInvoices.reduce((s, i) => s + Number(i.amount) - Number(i.discount || 0), 0);
-  const invoicePaid = validInvoices.reduce((s, i) => s + Number(i.paid_amount || 0), 0);
-  const cashCollected = (payments || []).reduce((s, p) => s + Number(p.amount), 0);
-
-  // Reconcile: If invoiceBilled is 0 (unbilled) but cash was collected,
-  // ensure billed is at least equal to collected so it doesn't show Rs 0 Total Fee while having Paid amount.
-  const billed = Math.max(invoiceBilled, cashCollected);
-  const collected = Math.max(invoicePaid, cashCollected);
-  const collectionPct = billed > 0 ? Math.round((collected / billed) * 100) : 0;
+  const invoiceBilled = (rawInvoices || []).reduce((s, i) => s + Number(i.amount) - Number(i.discount || 0), 0);
+  const collected = (payments || []).reduce((s, p) => s + Number(p.amount), 0);
+  const billed = Math.max(invoiceBilled, collected);
   const uncollected = Math.max(billed - collected, 0);
 
   const paymentByInvoice = new Map<string, { id: string; receipt_no: string; paid_at: string }>();
@@ -158,7 +124,7 @@ export default async function FinancialSummaryPage({
     }
   }
 
-  // Expenses calculations (strictly relevant to expenses only)
+  // Expenses calculations
   const allExpenses = expenseRows || [];
   const expensesTotal = allExpenses.reduce((s, e) => s + Number(e.amount), 0);
   const schoolExpenses = allExpenses
@@ -167,19 +133,6 @@ export default async function FinancialSummaryPage({
   const otherExpenses = allExpenses
     .filter((e) => e.kind !== "school")
     .reduce((s, e) => s + Number(e.amount), 0);
-
-  const byCategoryMap = new Map<string, number>();
-  for (const e of allExpenses) {
-    const key = e.category || (e.kind === "school" ? "Operational" : "Other");
-    byCategoryMap.set(key, (byCategoryMap.get(key) || 0) + Number(e.amount));
-  }
-  const categoryList = [...byCategoryMap.entries()]
-    .map(([cat, amount]) => ({
-      category: cat,
-      amount,
-      pct: expensesTotal > 0 ? Math.round((amount / expensesTotal) * 100) : 0,
-    }))
-    .sort((a, b) => b.amount - a.amount);
 
   // Salaries calculations
   const salaryMap = Object.fromEntries((salaries || []).map((s) => [s.teacher_id, Number(s.monthly_salary)]));
@@ -208,11 +161,8 @@ export default async function FinancialSummaryPage({
     paidAmt: otherPaidMap[e.id] != null ? otherPaidMap[e.id]! : null,
   }));
   const salaryRows = [...portalRows, ...otherRows];
-  const salaryPaid = salaryRows.filter((s) => s.paidAmt != null);
-  const salaryUnpaid = salaryRows.filter((s) => s.paidAmt == null);
-  const salaryPaidSum = salaryPaid.reduce((s, t) => s + (t.paidAmt || 0), 0);
+  const salaryPaidSum = salaryRows.filter((s) => s.paidAmt != null).reduce((s, t) => s + (t.paidAmt || 0), 0);
   const salaryDueSum = salaryRows.reduce((s, t) => s + t.booked, 0);
-  const salaryDisbursedPct = salaryDueSum > 0 ? Math.round((salaryPaidSum / salaryDueSum) * 100) : 0;
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "fees", label: "Fee overview" },
@@ -229,11 +179,11 @@ export default async function FinancialSummaryPage({
 
   const qs = (t: Tab) => `/principal/fees/overview?tab=${t}&month=${period.month}&year=${period.year}`;
 
-  const feesEmpty = !validInvoices.length && collected === 0;
+  const feesEmpty = !(rawInvoices || []).length && collected === 0;
   const expensesEmpty = !allExpenses.length;
   const salaryEmpty = period.isFuture || (!salaryRows.length && (period.isPast || period.isCurrent));
 
-  const mappedFeeInvoices: FeeInvoiceItem[] = validInvoices.map((inv) => {
+  const mappedFeeInvoices: FeeInvoiceItem[] = (rawInvoices || []).map((inv) => {
     const student = inv.students as {
       id?: string;
       name?: string;
@@ -386,10 +336,10 @@ export default async function FinancialSummaryPage({
         {/* Dynamic Tab Views via FinancialSummaryView (With By-Default Closed Lists) */}
         {tab === "fees" && (
           <div className="space-y-4">
-            {validInvoices.length === 0 && !period.isFuture && (
+            {!(rawInvoices || []).length && !period.isFuture && (
               <GenerateInvoicesCard role="principal" initialMonth={period.month} initialYear={period.year} />
             )}
-            {feesEmpty && validInvoices.length === 0 ? (
+            {feesEmpty ? (
               <NoHistory period={period} what="fee invoices / collections" />
             ) : (
               <FinancialSummaryView
