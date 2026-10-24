@@ -8,12 +8,38 @@ export default async function PrincipalNewStudentPage() {
   const { supabase, schoolId, profile } = await getContext();
   if (!schoolId || profile.role !== "principal") redirect("/");
 
-  const { data: classes } = await supabase
-    .from("classes")
-    .select("id, name")
-    .eq("school_id", schoolId)
-    .order("sort_order")
-    .order("name");
+  const [{ data: classes }, { data: existingStudents }] = await Promise.all([
+    supabase
+      .from("classes")
+      .select("id, name")
+      .eq("school_id", schoolId)
+      .order("sort_order")
+      .order("name"),
+    supabase
+      .from("students")
+      .select("admission_no")
+      .eq("school_id", schoolId),
+  ]);
+
+  let maxNum = 0;
+  for (const s of existingStudents || []) {
+    if (!s.admission_no) continue;
+    const trimmed = String(s.admission_no).trim();
+    const asNum = parseInt(trimmed, 10);
+    if (!isNaN(asNum) && String(asNum) === trimmed) {
+      if (asNum > maxNum) maxNum = asNum;
+    } else {
+      const matches = trimmed.match(/\d+/g);
+      if (matches) {
+        for (const m of matches) {
+          const n = parseInt(m, 10);
+          if (!isNaN(n) && n > maxNum) maxNum = n;
+        }
+      }
+    }
+  }
+
+  const defaultAdmissionNo = maxNum > 0 ? String(maxNum + 1) : String((existingStudents?.length || 0) + 1);
 
   return (
     <Shell role="principal" title="Add student">
@@ -46,7 +72,7 @@ export default async function PrincipalNewStudentPage() {
       </div>
 
       <div className="max-w-4xl">
-        <NewStudentForm classes={classes || []} role="principal" />
+        <NewStudentForm classes={classes || []} role="principal" defaultAdmissionNo={defaultAdmissionNo} />
       </div>
     </Shell>
   );

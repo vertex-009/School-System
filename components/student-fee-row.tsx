@@ -10,6 +10,7 @@ interface StudentFeeRowProps {
   transportFee: number;
   miscFee: number;
   discount: number;
+  showAdmissionFee?: boolean;
   canEdit?: boolean;
 }
 
@@ -20,11 +21,12 @@ export function StudentFeeRow({
   transportFee: initTransport,
   miscFee: initMisc,
   discount: initDiscount,
+  showAdmissionFee = false,
   canEdit = true,
 }: StudentFeeRowProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState<{ text: string; ok: boolean; migrationNeeded?: boolean } | null>(null);
+  const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
 
   const [admissionFee, setAdmissionFee] = useState<number>(initAdmission || 0);
   const [monthlyFee, setMonthlyFee] = useState<number>(initMonthly || 0);
@@ -46,16 +48,9 @@ export function StudentFeeRow({
         setMessage({ text: "Fee structure updated successfully", ok: true });
         setIsEditing(false);
       } else {
-        const isMigration =
-          Boolean((res as any)?.migrationNeeded) ||
-          res?.error?.toLowerCase().includes("schema cache") ||
-          res?.error?.toLowerCase().includes("column");
         setMessage({
-          text: isMigration
-            ? "Database column missing: Supabase SQL Editor ma migration run krna zaroori hai."
-            : res?.error || "Failed to update fee",
+          text: res?.error || "Failed to update fee",
           ok: false,
-          migrationNeeded: isMigration,
         });
       }
     } catch (err: unknown) {
@@ -75,14 +70,9 @@ export function StudentFeeRow({
           <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 font-bold text-xs shadow-xs">
             💳
           </span>
-          <div>
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
-              Fee Structure &amp; Concessions
-            </h3>
-            <p className="text-[11px] text-slate-500">
-              Assigned monthly tuition, transport, misc fees, and student discount
-            </p>
-          </div>
+          <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
+            Fee Structure
+          </h3>
         </div>
 
         {canEdit && !isEditing && (
@@ -104,52 +94,33 @@ export function StudentFeeRow({
 
       {message && (
         <div
-          className={`rounded-2xl p-4 text-xs border space-y-2.5 ${
+          className={`rounded-xl px-3.5 py-2.5 text-xs border flex items-center gap-2 font-bold ${
             message.ok
-              ? "bg-emerald-50 text-emerald-800 border-emerald-200 font-bold"
+              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
               : "bg-rose-50 text-rose-800 border-rose-200"
           }`}
         >
-          <div className="flex items-center gap-2 font-bold">
-            <span className="text-sm">{message.ok ? "✓" : "⚠️"}</span>
-            <span>{message.text}</span>
-          </div>
-
-          {message.migrationNeeded && (
-            <div className="rounded-xl bg-white p-3.5 border border-rose-200/80 shadow-2xs space-y-2 text-slate-800 font-normal">
-              <p className="text-[11px] font-bold text-rose-900">
-                Fix: Supabase Dashboard &gt; SQL Editor ma ye 1 query run karein:
-              </p>
-              <pre className="rounded-lg bg-slate-900 text-emerald-400 p-3 text-[11px] font-mono overflow-x-auto select-all leading-relaxed">
-{`ALTER TABLE public.students
-  ADD COLUMN IF NOT EXISTS admission_fee NUMERIC(12,2) NOT NULL DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS monthly_fee NUMERIC(12,2) NOT NULL DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS transport_fee NUMERIC(12,2) NOT NULL DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS misc_fee NUMERIC(12,2) NOT NULL DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS discount NUMERIC(12,2) NOT NULL DEFAULT 0;`}
-              </pre>
-              <p className="text-[10px] text-slate-500">
-                Query run krne ke baad dobara &ldquo;Save Fee&rdquo; button dabayein, fee kamyabi se save ho jaye gi.
-              </p>
-            </div>
-          )}
+          <span>{message.ok ? "✓" : "⚠️"}</span>
+          <span>{message.text}</span>
         </div>
       )}
 
       {/* Read View: Shown in a row */}
       {!isEditing ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-          {/* 1. Admission Fee */}
-          <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
-            <span className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-              Admission Fee
-            </span>
-            <span className="mt-1 block text-sm font-extrabold text-slate-800 tabular-nums">
-              Rs. {Number(admissionFee).toLocaleString()}
-            </span>
-          </div>
+        <div className={`grid gap-3 ${showAdmissionFee ? "grid-cols-2 sm:grid-cols-3 md:grid-cols-6" : "grid-cols-2 sm:grid-cols-3 md:grid-cols-5"}`}>
+          {/* Optional Admission Fee */}
+          {showAdmissionFee && (
+            <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
+              <span className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                Admission Fee
+              </span>
+              <span className="mt-1 block text-sm font-extrabold text-slate-800 tabular-nums">
+                Rs. {Number(admissionFee).toLocaleString()}
+              </span>
+            </div>
+          )}
 
-          {/* 2. Monthly Tuition */}
+          {/* Monthly Tuition */}
           <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
             <span className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
               Monthly Tuition
@@ -159,7 +130,7 @@ export function StudentFeeRow({
             </span>
           </div>
 
-          {/* 3. Transport Fee */}
+          {/* Transport Fee */}
           <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
             <span className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
               Transport Fee
@@ -169,7 +140,7 @@ export function StudentFeeRow({
             </span>
           </div>
 
-          {/* 4. Misc Charges */}
+          {/* Misc Charges */}
           <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
             <span className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
               Misc Charges
@@ -179,7 +150,7 @@ export function StudentFeeRow({
             </span>
           </div>
 
-          {/* 5. Discount */}
+          {/* Discount */}
           <div className="rounded-xl border border-amber-100 bg-amber-50/50 p-3">
             <span className="block text-[11px] font-semibold text-amber-800 uppercase tracking-wider">
               Monthly Discount
@@ -189,7 +160,7 @@ export function StudentFeeRow({
             </span>
           </div>
 
-          {/* 6. Net Monthly Payable */}
+          {/* Net Monthly Payable */}
           <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-3 shadow-2xs">
             <span className="block text-[11px] font-bold text-emerald-800 uppercase tracking-wider">
               Net Monthly Fee
@@ -202,20 +173,24 @@ export function StudentFeeRow({
       ) : (
         /* Edit Form: In-row inputs with Live Calculation */
         <form onSubmit={handleSave} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 rounded-2xl border border-slate-200 bg-slate-50/90 p-3.5">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                Admission Fee (PKR)
-              </label>
-              <input
-                type="number"
-                name="admission_fee"
-                min={0}
-                value={admissionFee}
-                onChange={(e) => setAdmissionFee(Math.max(0, Number(e.target.value) || 0))}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-brand-navy focus:outline-none"
-              />
-            </div>
+          <div className={`grid gap-3 rounded-2xl border border-slate-200 bg-slate-50/90 p-3.5 ${showAdmissionFee ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-5" : "grid-cols-1 sm:grid-cols-2 md:grid-cols-4"}`}>
+            {showAdmissionFee ? (
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                  Admission Fee (PKR)
+                </label>
+                <input
+                  type="number"
+                  name="admission_fee"
+                  min={0}
+                  value={admissionFee}
+                  onChange={(e) => setAdmissionFee(Math.max(0, Number(e.target.value) || 0))}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-brand-navy focus:outline-none"
+                />
+              </div>
+            ) : (
+              <input type="hidden" name="admission_fee" value={admissionFee} />
+            )}
 
             <div>
               <label className="block text-[11px] font-bold text-slate-600 mb-1">

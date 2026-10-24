@@ -140,6 +140,7 @@ export default async function StudentDetailPage({
         transportFee={effectiveTransportFee}
         miscFee={effectiveMiscFee}
         discount={effectiveDiscount}
+        showAdmissionFee={false}
         canEdit={true}
       />
 

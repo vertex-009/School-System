@@ -14,9 +14,11 @@ interface ClassItem {
 export function NewStudentForm({
   classes,
   role = "finance",
+  defaultAdmissionNo = "",
 }: {
   classes: ClassItem[];
   role?: "finance" | "principal";
+  defaultAdmissionNo?: string;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -36,7 +38,7 @@ export function NewStudentForm({
     dob: "",
     joined_on: new Date().toISOString().slice(0, 10),
     address: "",
-    admission_no: "",
+    admission_no: defaultAdmissionNo,
     roll_no: "",
     class_id: classes[0]?.id || "",
     status: "active",
