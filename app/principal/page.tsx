@@ -28,11 +28,31 @@ async function loadPrincipalDash(
 ): Promise<DashNums> {
   const { monthStart, monthEnd, dayStart, dayEnd } = periodBounds(month, year);
 
+  // Auto-ensure invoices first if not a future month (matching Finance dashboard)
+  const now = new Date();
+  const isFuture = year * 12 + month > now.getFullYear() * 12 + (now.getMonth() + 1);
+  if (!isFuture) {
+    const { ensureCurrentMonthInvoices } = await import("@/lib/fee-invoices");
+    await ensureCurrentMonthInvoices(supabase, { month, year, dueDay: 10 });
+  }
+
+  // Try RPC if available for current month
+  const isCurrentMonth = month === now.getMonth() + 1 && year === now.getFullYear();
+  let rpcData: Record<string, unknown> | null = null;
+  if (isCurrentMonth) {
+    const { data: rpcRes } = await supabase.rpc("get_principal_dashboard");
+    if (rpcRes && typeof rpcRes === "object" && "paid" in rpcRes) {
+      rpcData = rpcRes as Record<string, unknown>;
+    }
+  }
+
   const [
     { count: students },
     { count: teachers },
     { count: left_students },
     { count: classes },
+    { count: paidCount },
+    { count: unpaidCount },
     { data: payRows },
     { data: invRows },
     { data: expRows },
@@ -55,6 +75,20 @@ async function loadPrincipalDash(
       .eq("status", "left"),
     supabase.from("classes").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
     supabase
+      .from("fee_invoices")
+      .select("id", { count: "exact", head: true })
+      .eq("school_id", schoolId)
+      .eq("month", month)
+      .eq("year", year)
+      .eq("status", "paid"),
+    supabase
+      .from("fee_invoices")
+      .select("id", { count: "exact", head: true })
+      .eq("school_id", schoolId)
+      .eq("month", month)
+      .eq("year", year)
+      .in("status", ["unpaid", "partial"]),
+    supabase
       .from("payments")
       .select("amount")
       .eq("school_id", schoolId)
@@ -62,7 +96,7 @@ async function loadPrincipalDash(
       .lt("paid_at", monthEnd),
     supabase
       .from("fee_invoices")
-      .select("id, amount, discount, paid_amount, status, students(created_at, joined_on)")
+      .select("id, amount, discount, paid_amount, status")
       .eq("school_id", schoolId)
       .eq("month", month)
       .eq("year", year),
@@ -74,35 +108,28 @@ async function loadPrincipalDash(
       .lt("expense_date", dayEnd),
   ]);
 
-  let currentInvRows = invRows;
-  if (!currentInvRows || currentInvRows.length === 0) {
-    const { ensureCurrentMonthInvoices } = await import("@/lib/fee-invoices");
-    await ensureCurrentMonthInvoices(supabase, { month, year, dueDay: 10 });
-    const { data: refetched } = await supabase
-      .from("fee_invoices")
-      .select("id, amount, discount, paid_amount, status, students(created_at, joined_on)")
-      .eq("school_id", schoolId)
-      .eq("month", month)
-      .eq("year", year);
-    if (refetched && refetched.length > 0) currentInvRows = refetched;
-  }
+  const currentInvRows = invRows || [];
 
-  const paid = (currentInvRows || []).filter((r) => r.status === "paid").length;
-  const unpaid = (currentInvRows || []).filter((r) => r.status === "unpaid" || r.status === "partial").length;
+  const paidFromInvoices = currentInvRows.filter((r) => r.status === "paid").length;
+  const unpaidFromInvoices = currentInvRows.filter((r) => r.status === "unpaid" || r.status === "partial").length;
+
+  const paid = paidCount != null ? paidCount : (rpcData?.paid != null ? Number(rpcData.paid) : paidFromInvoices);
+  const unpaid = unpaidCount != null ? unpaidCount : (rpcData?.unpaid != null ? Number(rpcData.unpaid) : unpaidFromInvoices);
+
   const collected = (payRows || []).reduce((s, r) => s + Number(r.amount || 0), 0);
-  const invoiceBilled = (currentInvRows || []).reduce(
+  const invoiceBilled = currentInvRows.reduce(
     (s, r) => s + Number(r.amount || 0) - Number(r.discount || 0),
     0
   );
   const billed = Math.max(invoiceBilled, collected);
-  const paid_on_invoices = (currentInvRows || []).reduce((s, r) => s + Number(r.paid_amount || 0), 0);
+  const paid_on_invoices = currentInvRows.reduce((s, r) => s + Number(r.paid_amount || 0), 0);
   const expenses = (expRows || []).reduce((s, r) => s + Number(r.amount || 0), 0);
 
   return {
-    students: students || 0,
-    teachers: teachers || 0,
-    left_students: left_students || 0,
-    classes: classes || 0,
+    students: rpcData?.students != null ? Number(rpcData.students) : (students || 0),
+    teachers: rpcData?.teachers != null ? Number(rpcData.teachers) : (teachers || 0),
+    left_students: rpcData?.left_students != null ? Number(rpcData.left_students) : (left_students || 0),
+    classes: rpcData?.classes != null ? Number(rpcData.classes) : (classes || 0),
     paid: paid || 0,
     unpaid: unpaid || 0,
     collected,
@@ -127,7 +154,7 @@ export default async function PrincipalHome({
   const collected = d.collected;
   const billed = d.billed;
   const expenses = d.expenses;
-  const collectionPct = billed > 0 ? Math.round((d.paid_on_invoices / billed) * 100) : 0;
+  const collectionPct = billed > 0 ? Math.round((Math.max(d.paid_on_invoices, collected) / billed) * 100) : 0;
 
   return (
     <Shell
