@@ -236,16 +236,8 @@ export default async function TeacherHome({
         />
       </div>
 
-      {/* Clean Quick Links - without unnecessary subtext */}
+      {/* Action Links */}
       <section className="mt-5">
-        <div className="mb-3 flex items-center gap-2">
-          <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-50 text-amber-500 shadow-xs">
-            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-              <path d="M13 2L4 14h7l-1 8 10-14h-7l1-6z" />
-            </svg>
-          </span>
-          <h2 className="text-sm font-bold text-[#0b1f3a]">Quick links</h2>
-        </div>
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:gap-3 lg:grid-cols-3">
           {QUICK.map((a) => (
             <Link

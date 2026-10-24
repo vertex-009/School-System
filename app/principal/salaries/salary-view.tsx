@@ -309,7 +309,7 @@ export function PrincipalSalaryView({
                 >
                   <div className="flex items-center justify-between px-2 pb-2 mb-1.5 border-b border-slate-100">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      {tab.label} Quick Links
+                      {tab.label} Actions
                     </span>
                     <button
                       onClick={() => setActiveQuickTab(null)}

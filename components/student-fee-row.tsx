@@ -24,7 +24,7 @@ export function StudentFeeRow({
 }: StudentFeeRowProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
+  const [message, setMessage] = useState<{ text: string; ok: boolean; migrationNeeded?: boolean } | null>(null);
 
   const [admissionFee, setAdmissionFee] = useState<number>(initAdmission || 0);
   const [monthlyFee, setMonthlyFee] = useState<number>(initMonthly || 0);
@@ -46,7 +46,17 @@ export function StudentFeeRow({
         setMessage({ text: "Fee structure updated successfully", ok: true });
         setIsEditing(false);
       } else {
-        setMessage({ text: res?.error || "Failed to update fee", ok: false });
+        const isMigration =
+          Boolean((res as any)?.migrationNeeded) ||
+          res?.error?.toLowerCase().includes("schema cache") ||
+          res?.error?.toLowerCase().includes("column");
+        setMessage({
+          text: isMigration
+            ? "Database column missing: Supabase SQL Editor ma migration run krna zaroori hai."
+            : res?.error || "Failed to update fee",
+          ok: false,
+          migrationNeeded: isMigration,
+        });
       }
     } catch (err: unknown) {
       setMessage({
@@ -94,13 +104,35 @@ export function StudentFeeRow({
 
       {message && (
         <div
-          className={`rounded-xl px-3.5 py-2 text-xs font-bold border ${
+          className={`rounded-2xl p-4 text-xs border space-y-2.5 ${
             message.ok
-              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-              : "bg-rose-50 text-rose-700 border-rose-200"
+              ? "bg-emerald-50 text-emerald-800 border-emerald-200 font-bold"
+              : "bg-rose-50 text-rose-800 border-rose-200"
           }`}
         >
-          {message.text}
+          <div className="flex items-center gap-2 font-bold">
+            <span className="text-sm">{message.ok ? "✓" : "⚠️"}</span>
+            <span>{message.text}</span>
+          </div>
+
+          {message.migrationNeeded && (
+            <div className="rounded-xl bg-white p-3.5 border border-rose-200/80 shadow-2xs space-y-2 text-slate-800 font-normal">
+              <p className="text-[11px] font-bold text-rose-900">
+                Fix: Supabase Dashboard &gt; SQL Editor ma ye 1 query run karein:
+              </p>
+              <pre className="rounded-lg bg-slate-900 text-emerald-400 p-3 text-[11px] font-mono overflow-x-auto select-all leading-relaxed">
+{`ALTER TABLE public.students
+  ADD COLUMN IF NOT EXISTS admission_fee NUMERIC(12,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS monthly_fee NUMERIC(12,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS transport_fee NUMERIC(12,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS misc_fee NUMERIC(12,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS discount NUMERIC(12,2) NOT NULL DEFAULT 0;`}
+              </pre>
+              <p className="text-[10px] text-slate-500">
+                Query run krne ke baad dobara &ldquo;Save Fee&rdquo; button dabayein, fee kamyabi se save ho jaye gi.
+              </p>
+            </div>
+          )}
         </div>
       )}
 

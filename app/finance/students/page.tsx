@@ -207,18 +207,8 @@ export default async function FinanceStudentsPage({
           </div>
         </section>
 
-        {/* Quick Links Header & Action Boxes (Add Student, Student Directory, Import by class) */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-50 text-amber-500 shadow-xs">
-              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                <path d="M13 2L4 14h7l-1 8 10-14h-7l1-6z" />
-              </svg>
-            </span>
-            <h2 className="text-sm font-bold text-[#0b1f3a]">Quick Links</h2>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-3 max-w-4xl">
+        {/* Action Boxes (Add Student, Student Directory, Import by class) */}
+        <div className="grid gap-4 sm:grid-cols-3 max-w-4xl">
             {/* 1. Add Student */}
             <Link
               href="/finance/students/new"
@@ -308,7 +298,6 @@ export default async function FinanceStudentsPage({
               </div>
             </Link>
           </div>
-        </div>
 
         {/* Directory Section: Only shown when opened (via Student Directory or Class selection) */}
         {isDirectoryOpen && (

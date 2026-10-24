@@ -216,7 +216,7 @@ export function ColumnChartCard({
                 ⚡
               </span>
               <span className="text-xs font-black text-slate-800">
-                {activeItem.label} Quick Links
+                {activeItem.label} Actions
               </span>
             </div>
             <button

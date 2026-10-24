@@ -109,24 +109,6 @@ export default async function PrincipalStudentsPage({
 
   const activeClass = classOptions.find((c) => c.id === classId);
 
-  // Helper to build filter query string while preserving open directory
-  const buildQuery = (newParams: { q?: string; class?: string; status?: string; view?: string }) => {
-    const params = new URLSearchParams();
-    const merged = {
-      q,
-      class: classId,
-      status,
-      view: view || (!classId ? "all" : undefined),
-      ...newParams,
-    };
-    if (merged.q) params.set("q", merged.q);
-    if (merged.class) params.set("class", merged.class);
-    if (merged.status) params.set("status", merged.status);
-    if (merged.view && !merged.class) params.set("view", merged.view);
-    const qs = params.toString();
-    return qs ? `/principal/students?${qs}` : "/principal/students";
-  };
-
   // Only query detailed student records when the directory is opened
   let list: Array<{
     id: string;
@@ -227,17 +209,8 @@ export default async function PrincipalStudentsPage({
           </div>
         </section>
 
-        {/* Quick Links Header & Action Boxes (Add Student & Student Directory) */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-50 text-amber-500 shadow-xs">
-              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                <path d="M13 2L4 14h7l-1 8 10-14h-7l1-6z" />
-              </svg>
-            </span>
-            <h2 className="text-sm font-bold text-[#0b1f3a]">Quick Links</h2>
-          </div>
-
+        {/* Action Boxes (Add Student & Student Directory) */}
+        {!isDirectoryOpen ? (
           <div className="grid gap-4 sm:grid-cols-2 max-w-3xl">
             {/* 1. Add Student */}
             <Link
@@ -268,12 +241,8 @@ export default async function PrincipalStudentsPage({
 
             {/* 2. Student Directory */}
             <Link
-              href={isDirectoryOpen ? "/principal/students" : "/principal/students?view=all"}
-              className={`group relative flex flex-col justify-between rounded-2xl border p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md ${
-                isDirectoryOpen
-                  ? "border-sky-400 bg-gradient-to-br from-sky-50 via-white to-blue-50 ring-2 ring-sky-300"
-                  : "border-sky-200/90 bg-gradient-to-br from-sky-50/50 via-white to-blue-50/20 hover:border-sky-400"
-              }`}
+              href="/principal/students?view=all"
+              className="group relative flex flex-col justify-between rounded-2xl border border-sky-200/90 bg-gradient-to-br from-sky-50/50 via-white to-blue-50/20 p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-sky-400 hover:shadow-md"
             >
               <div className="flex items-center justify-between">
                 <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#0b1f3a] text-white shadow-md shadow-slate-900/25 transition group-hover:scale-105">
@@ -294,20 +263,89 @@ export default async function PrincipalStudentsPage({
                 <h3 className="text-lg font-bold text-[#0b1f3a] transition group-hover:text-brand-accent">
                   Student Directory
                 </h3>
-                {isDirectoryOpen && (
-                  <span className="rounded-full bg-sky-100 px-2.5 py-0.5 text-[10px] font-bold text-sky-800">
-                    Open
-                  </span>
-                )}
               </div>
             </Link>
           </div>
-        </div>
+        ) : (
+          <div className="max-w-md">
+            {/* Student Directory (Active / Open) - Add Student is hidden when directory is open */}
+            <Link
+              href="/principal/students"
+              className="group relative flex flex-col justify-between rounded-2xl border border-sky-400 bg-gradient-to-br from-sky-50 via-white to-blue-50 p-5 shadow-sm ring-2 ring-sky-300 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+              title="Click to close directory"
+            >
+              <div className="flex items-center justify-between">
+                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#0b1f3a] text-white shadow-md shadow-slate-900/25 transition group-hover:scale-105">
+                  <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                  </svg>
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-3 py-1 text-xs font-bold text-sky-800">
+                  <span className="h-2 w-2 rounded-full bg-sky-600 animate-pulse" />
+                  Directory Open
+                </span>
+              </div>
+              <div className="mt-4 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-[#0b1f3a]">
+                  Student Directory
+                </h3>
+                <span className="text-xs font-bold text-slate-500 group-hover:text-rose-600">
+                  ✕ Close
+                </span>
+              </div>
+            </Link>
+          </div>
+        )}
 
         {/* Directory Section: Only shown when opened (via Student Directory or Class selection) */}
         {isDirectoryOpen && (
           <>
-            {/* Colorful Class Quick Buttons */}
+            {/* Search Bar - Directly under Student Directory, clean without extra filters or text */}
+            <section className="rounded-2xl border border-slate-200/90 bg-white p-3.5 sm:p-4 shadow-xs">
+              <form method="get" className="flex items-center gap-2">
+                {classId ? (
+                  <input type="hidden" name="class" value={classId} />
+                ) : (
+                  <input type="hidden" name="view" value="all" />
+                )}
+
+                <div className="relative flex-1">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                  </span>
+                  <input
+                    name="q"
+                    defaultValue={q}
+                    placeholder="Search by student name, roll no, admission no, or father name..."
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-10 pr-4 py-2.5 text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:border-brand-navy focus:bg-white focus:outline-none"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="rounded-xl bg-[#0b1f3a] px-4 py-2.5 text-xs font-bold text-white shadow-xs transition hover:bg-brand-accent active:scale-95 cursor-pointer shrink-0"
+                >
+                  Search
+                </button>
+
+                {q && (
+                  <Link
+                    href={classId ? `/principal/students?class=${classId}` : "/principal/students?view=all"}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-xs shrink-0"
+                  >
+                    Clear
+                  </Link>
+                )}
+              </form>
+            </section>
+
+            {/* Colorful Class Quick Buttons - Placed after Search */}
             <section className="rounded-2xl sm:rounded-3xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs space-y-3.5">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
@@ -398,107 +436,6 @@ export default async function PrincipalStudentsPage({
                 })}
               </div>
             </section>
-            {/* Search & Filter Toolbar */}
-            <section className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs space-y-3.5">
-              <form method="get" className="flex flex-col sm:flex-row sm:items-center gap-3">
-                {classId ? (
-                  <input type="hidden" name="class" value={classId} />
-                ) : (
-                  <input type="hidden" name="view" value="all" />
-                )}
-                {status && <input type="hidden" name="status" value={status} />}
-
-                <div className="relative flex-1">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="11" cy="11" r="8" />
-                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                    </svg>
-                  </span>
-                  <input
-                    name="q"
-                    defaultValue={q}
-                    placeholder="Search by student name, roll no, admission no, or father name..."
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-10 pr-4 py-2 text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:border-brand-navy focus:bg-white focus:outline-none"
-                  />
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <select
-                    name="class"
-                    defaultValue={classId}
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-brand-navy"
-                  >
-                    <option value="">All Classes</option>
-                    {classOptions.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} ({c.count})
-                      </option>
-                    ))}
-                  </select>
-
-                  <select
-                    name="status"
-                    defaultValue={status}
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-brand-navy"
-                  >
-                    <option value="">All Statuses</option>
-                    <option value="active">Active Only</option>
-                    <option value="left">Left Only</option>
-                  </select>
-
-                  <button
-                    type="submit"
-                    className="rounded-xl bg-[#0b1f3a] px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-brand-accent active:scale-95 cursor-pointer"
-                  >
-                    Search
-                  </button>
-
-                  {(q || status) && (
-                    <Link
-                      href={classId ? `/principal/students?class=${classId}` : "/principal/students?view=all"}
-                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-xs"
-                    >
-                      Reset
-                    </Link>
-                  )}
-                </div>
-              </form>
-
-              {/* Quick Status Filter Buttons */}
-              <div className="flex items-center gap-2 pt-2 border-t border-slate-100 text-xs">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 shrink-0">
-                  Status:
-                </span>
-                <Link
-                  href={buildQuery({ status: "" })}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-bold shrink-0 transition ${
-                    !status ? "bg-brand-navy text-white shadow-xs" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
-                >
-                  All Statuses ({totalActive + totalLeft})
-                </Link>
-                <Link
-                  href={buildQuery({ status: "active" })}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-bold shrink-0 transition ${
-                    status === "active" ? "bg-emerald-600 text-white shadow-xs" : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
-                  }`}
-                >
-                  Active ({totalActive})
-                </Link>
-                {totalLeft > 0 && (
-                  <Link
-                    href={buildQuery({ status: "left" })}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-bold shrink-0 transition ${
-                      status === "left" ? "bg-rose-600 text-white shadow-xs" : "bg-rose-50 text-rose-800 hover:bg-rose-100"
-                    }`}
-                  >
-                    Left ({totalLeft})
-                  </Link>
-                )}
-              </div>
-            </section>
-
             {/* Complete Students Directory Table */}
             <section className="rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
@@ -509,7 +446,6 @@ export default async function PrincipalStudentsPage({
                   <p className="text-xs text-slate-500">
                     {list.length} student{list.length !== 1 ? "s" : ""} found
                     {q.trim() ? ` · Matching “${q.trim()}”` : ""}
-                    {status ? ` · Status: ${status}` : ""}
                   </p>
                 </div>
 

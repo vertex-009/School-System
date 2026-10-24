@@ -2334,7 +2334,19 @@ export async function updateStudentFee(studentId: string, formData: FormData) {
     .eq("id", studentId)
     .eq("school_id", ctx.schoolId);
 
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    const isColumnMissing =
+      error.message.toLowerCase().includes("column") ||
+      error.message.toLowerCase().includes("schema cache");
+    if (isColumnMissing) {
+      return {
+        ok: false,
+        error: "Database migration required: Fee columns are not yet created in 'students' table.",
+        migrationNeeded: true,
+      };
+    }
+    return { ok: false, error: error.message };
+  }
   revalidatePath(`/finance/students/${studentId}`);
   revalidatePath(`/principal/students/${studentId}`);
   revalidatePath("/finance/students");

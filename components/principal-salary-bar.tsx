@@ -38,7 +38,7 @@ export function PrincipalSalaryBar({
           onClick={() => setIsOpen(!isOpen)}
           className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-bold text-white/90 hover:bg-white/20 transition cursor-pointer"
         >
-          {isOpen ? "Hide Quick Links ↑" : "Open Quick Links ↓"}
+          {isOpen ? "Hide Actions ↑" : "Open Actions ↓"}
         </button>
       </div>
 
