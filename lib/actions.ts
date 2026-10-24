@@ -631,10 +631,15 @@ export async function saveStudent(formData: FormData) {
   const { supabase, schoolId } = { supabase: ctx.supabase, schoolId: ctx.schoolId };
   const id = String(formData.get("id") || "");
   const name = String(formData.get("name") || "").trim();
-  const admission_no = String(formData.get("admission_no") || "").trim();
+  let admission_no = String(formData.get("admission_no") || "").trim();
 
   if (!name) return { ok: false, error: "Student name is required", field: "name" };
   if (!admission_no) return { ok: false, error: "Admission number is required", field: "admission_no" };
+
+  // Format pure numeric admission numbers to standard ADM-XX (e.g. 42 -> ADM-42)
+  if (/^\d+$/.test(admission_no)) {
+    admission_no = `ADM-${admission_no}`;
+  }
 
   const cnicCheck = requireCnic(String(formData.get("cnic") || ""));
   if (!cnicCheck.ok) return { ok: false, error: cnicCheck.error, field: "cnic" };

@@ -241,7 +241,7 @@ export function NewStudentForm({
           required
           value={formData.admission_no}
           onChange={handleChange}
-          placeholder="e.g. 21"
+          placeholder="e.g. ADM-42"
           error={result?.field === "admission_no" ? result.error : undefined}
         />
 

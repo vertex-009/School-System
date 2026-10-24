@@ -67,20 +67,6 @@ export function CnicField({
           <span>{label}</span>
           {required && <span className="text-rose-500 font-bold text-sm leading-none select-none" title="Required">•</span>}
         </label>
-        <div className="text-[11px] font-medium transition-colors">
-          {digitCount === 13 ? (
-            <span className="inline-flex items-center gap-1 font-semibold text-emerald-600">
-              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-              </svg>
-              13/13 digits
-            </span>
-          ) : (
-            <span className={digitCount > 0 ? "text-amber-600 font-semibold" : "text-slate-400"}>
-              {digitCount}/13 digits
-            </span>
-          )}
-        </div>
       </div>
 
       <div className="relative mt-1.5">

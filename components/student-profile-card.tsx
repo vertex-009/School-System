@@ -21,6 +21,18 @@ function dash(v: string | number | null | undefined) {
   return String(v);
 }
 
+export function formatAdmissionNo(val?: string | null): string {
+  if (!val || String(val).trim() === "") return "NA";
+  const str = String(val).trim();
+  if (/^[A-Za-z]+-\d+$/i.test(str)) {
+    return str.toUpperCase();
+  }
+  if (/^\d+$/.test(str)) {
+    return `ADM-${str}`;
+  }
+  return str;
+}
+
 function formatDob(dob?: string | null) {
   if (!dob) return "NA";
   const d = new Date(dob);
@@ -56,7 +68,7 @@ export function StudentProfileCard({ student }: { student: StudentProfile }) {
   const rows: { left: { label: string; value: string }; right: { label: string; value: string } }[] = [
     {
       left: { label: "Name", value: dash(student.name) },
-      right: { label: "Admission No", value: dash(student.admission_no) },
+      right: { label: "Admission No", value: formatAdmissionNo(student.admission_no) },
     },
     {
       left: { label: "Father Name", value: dash(student.father_name) },
@@ -105,7 +117,7 @@ export function StudentProfileCard({ student }: { student: StudentProfile }) {
             <tr key={i} style={{ background: rowBg[i % 2] }}>
               {i === 0 && (
                 <td
-                  rowSpan={rows.length + 1}
+                  rowSpan={rows.length}
                   style={{
                     width: 130,
                     verticalAlign: "middle",
@@ -160,11 +172,6 @@ export function StudentProfileCard({ student }: { student: StudentProfile }) {
               </td>
             </tr>
           ))}
-          <tr style={{ background: rowBg[rows.length % 2] }}>
-            <td colSpan={2} style={{ borderBottom: border, padding: cellPad, verticalAlign: "middle" }}>
-              <Pair label="Address" value={dash(student.address)} />
-            </td>
-          </tr>
         </tbody>
       </table>
     </div>

@@ -38,7 +38,8 @@ export default async function NewStudentPage() {
     }
   }
 
-  const defaultAdmissionNo = maxNum > 0 ? String(maxNum + 1) : String((existingStudents?.length || 0) + 1);
+  const nextNum = maxNum > 0 ? maxNum + 1 : (existingStudents?.length || 0) + 1;
+  const defaultAdmissionNo = `ADM-${nextNum}`;
 
   return (
     <Shell role="finance" title="Add Student">
