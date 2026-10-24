@@ -4,77 +4,16 @@ import { setStudentStatus } from "@/lib/actions";
 import { classNameOf } from "@/lib/class-label";
 import { getContext } from "@/lib/session";
 import { redirect } from "next/navigation";
-
-const CLASS_PALETTES = [
-  {
-    card: "border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100/80 text-emerald-950",
-    badge: "bg-emerald-600 text-white",
-    countPill: "bg-emerald-100 text-emerald-800 border border-emerald-200/60",
-    active: "bg-emerald-700 text-white border-emerald-700 shadow-md ring-2 ring-emerald-300",
-  },
-  {
-    card: "border-sky-200 bg-sky-50/70 hover:bg-sky-100/80 text-sky-950",
-    badge: "bg-sky-600 text-white",
-    countPill: "bg-sky-100 text-sky-800 border border-sky-200/60",
-    active: "bg-sky-700 text-white border-sky-700 shadow-md ring-2 ring-sky-300",
-  },
-  {
-    card: "border-purple-200 bg-purple-50/70 hover:bg-purple-100/80 text-purple-950",
-    badge: "bg-purple-600 text-white",
-    countPill: "bg-purple-100 text-purple-800 border border-purple-200/60",
-    active: "bg-purple-700 text-white border-purple-700 shadow-md ring-2 ring-purple-300",
-  },
-  {
-    card: "border-amber-200 bg-amber-50/70 hover:bg-amber-100/80 text-amber-950",
-    badge: "bg-amber-600 text-white",
-    countPill: "bg-amber-100 text-amber-800 border border-amber-200/60",
-    active: "bg-amber-700 text-white border-amber-700 shadow-md ring-2 ring-amber-300",
-  },
-  {
-    card: "border-rose-200 bg-rose-50/70 hover:bg-rose-100/80 text-rose-950",
-    badge: "bg-rose-600 text-white",
-    countPill: "bg-rose-100 text-rose-800 border border-rose-200/60",
-    active: "bg-rose-700 text-white border-rose-700 shadow-md ring-2 ring-rose-300",
-  },
-  {
-    card: "border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100/80 text-indigo-950",
-    badge: "bg-indigo-600 text-white",
-    countPill: "bg-indigo-100 text-indigo-800 border border-indigo-200/60",
-    active: "bg-indigo-700 text-white border-indigo-700 shadow-md ring-2 ring-indigo-300",
-  },
-  {
-    card: "border-teal-200 bg-teal-50/70 hover:bg-teal-100/80 text-teal-950",
-    badge: "bg-teal-600 text-white",
-    countPill: "bg-teal-100 text-teal-800 border border-teal-200/60",
-    active: "bg-teal-700 text-white border-teal-700 shadow-md ring-2 ring-teal-300",
-  },
-  {
-    card: "border-orange-200 bg-orange-50/70 hover:bg-orange-100/80 text-orange-950",
-    badge: "bg-orange-600 text-white",
-    countPill: "bg-orange-100 text-orange-800 border border-orange-200/60",
-    active: "bg-orange-700 text-white border-orange-700 shadow-md ring-2 ring-orange-300",
-  },
-  {
-    card: "border-cyan-200 bg-cyan-50/70 hover:bg-cyan-100/80 text-cyan-950",
-    badge: "bg-cyan-600 text-white",
-    countPill: "bg-cyan-100 text-cyan-800 border border-cyan-200/60",
-    active: "bg-cyan-700 text-white border-cyan-700 shadow-md ring-2 ring-cyan-300",
-  },
-  {
-    card: "border-violet-200 bg-violet-50/70 hover:bg-violet-100/80 text-violet-950",
-    badge: "bg-violet-600 text-white",
-    countPill: "bg-violet-100 text-violet-800 border border-violet-200/60",
-    active: "bg-violet-700 text-white border-violet-700 shadow-md ring-2 ring-violet-300",
-  },
-];
+import { formatAdmissionNo } from "@/components/student-profile-card";
 
 export default async function PrincipalStudentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; class?: string; status?: string; view?: string }>;
+  searchParams: Promise<{ q?: string; class?: string; status?: string; view?: string; open?: string }>;
 }) {
-  const { q = "", class: classId = "", status = "", view = "" } = await searchParams;
-  const isDirectoryOpen = Boolean(classId || q.trim() || status || view === "all");
+  const { q = "", class: classId = "", status = "", view = "", open = "" } = await searchParams;
+  const isDirectoryOpen = Boolean(classId || q.trim() || status || view || open === "1");
+  const hasTableSelection = Boolean(classId || q.trim() || status || view === "all");
 
   const { supabase, schoolId } = await getContext();
   if (!schoolId) redirect("/");
@@ -117,18 +56,21 @@ export default async function PrincipalStudentsPage({
       q,
       class: classId,
       status,
-      view: view || (!classId && !status ? "all" : undefined),
+      view,
       ...newParams,
     };
     if (merged.q) params.set("q", merged.q);
     if (merged.class) params.set("class", merged.class);
     if (merged.status) params.set("status", merged.status);
-    if (merged.view && !merged.class && !merged.status) params.set("view", merged.view);
+    if (merged.view) params.set("view", merged.view);
+    if (!merged.class && !merged.q && !merged.status && !merged.view) {
+      params.set("open", "1");
+    }
     const qs = params.toString();
     return qs ? `/principal/students?${qs}` : "/principal/students";
   };
 
-  // Only query detailed student records when the directory is opened
+  // Only query detailed student records when the directory has a specific class/filter selected
   let list: Array<{
     id: string;
     name: string;
@@ -142,7 +84,7 @@ export default async function PrincipalStudentsPage({
     photo_url?: string | null;
   }> = [];
 
-  if (isDirectoryOpen) {
+  if (isDirectoryOpen && hasTableSelection) {
     let query = supabase
       .from("students")
       .select(
@@ -260,7 +202,7 @@ export default async function PrincipalStudentsPage({
 
             {/* 2. Student Directory */}
             <Link
-              href="/principal/students?view=all"
+              href="/principal/students?open=1"
               className="group relative flex flex-col justify-between rounded-2xl border border-sky-200/90 bg-gradient-to-br from-sky-50/50 via-white to-blue-50/20 p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-sky-400 hover:shadow-md"
             >
               <div className="flex items-center justify-between">
@@ -315,7 +257,7 @@ export default async function PrincipalStudentsPage({
           </div>
         ) : (
           <div className="max-w-md">
-            {/* Student Directory (Active / Open) - Add Student is hidden when directory is open */}
+            {/* Student Directory (Active / Open) */}
             <Link
               href="/principal/students"
               className="group relative flex flex-col justify-between rounded-2xl border border-sky-400 bg-gradient-to-br from-sky-50 via-white to-blue-50 p-5 shadow-sm ring-2 ring-sky-300 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
@@ -347,16 +289,18 @@ export default async function PrincipalStudentsPage({
           </div>
         )}
 
-        {/* Directory Section: Only shown when opened (via Student Directory or Class selection) */}
+        {/* Directory Section: Only shown when opened */}
         {isDirectoryOpen && (
           <>
-            {/* Search Bar - Directly under Student Directory, clean without extra filters or text */}
+            {/* Search Bar */}
             <section className="rounded-2xl border border-slate-200/90 bg-white p-3.5 sm:p-4 shadow-xs">
               <form method="get" className="flex items-center gap-2">
                 {classId ? (
                   <input type="hidden" name="class" value={classId} />
+                ) : view ? (
+                  <input type="hidden" name="view" value={view} />
                 ) : (
-                  <input type="hidden" name="view" value="all" />
+                  <input type="hidden" name="open" value="1" />
                 )}
                 {status && <input type="hidden" name="status" value={status} />}
 
@@ -393,7 +337,7 @@ export default async function PrincipalStudentsPage({
               </form>
             </section>
 
-            {/* Colorful Class Quick Buttons - Placed after Search */}
+            {/* Class Quick Links - Modern Unified Colors without duplicate text */}
             <section className="rounded-2xl sm:rounded-3xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs space-y-3.5">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
@@ -424,44 +368,70 @@ export default async function PrincipalStudentsPage({
                 <Link
                   href={buildQuery({ view: "all", class: "", status: "" })}
                   className={`group relative flex items-center gap-3 rounded-2xl p-3 border transition-all duration-150 cursor-pointer shadow-2xs hover:shadow-sm hover:-translate-y-0.5 ${
-                    (view === "all" || !classId) && !status
+                    view === "all" && !classId && !status
                       ? "bg-gradient-to-br from-[#0b1f3a] via-[#102d54] to-[#1a5276] text-white shadow-md border-transparent ring-2 ring-sky-400"
-                      : "bg-slate-900 hover:bg-slate-800 text-white border-slate-800"
+                      : "border-slate-200/90 bg-white hover:border-[#0b1f3a] hover:bg-slate-50/80 text-slate-900"
                   }`}
                 >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/20 text-white font-black text-base shadow-xs">
-                    👥
+                  <div
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-xs transition-transform group-hover:scale-105 ${
+                      view === "all" && !classId && !status
+                        ? "bg-white/20 text-white"
+                        : "bg-slate-100 text-slate-700 group-hover:bg-[#0b1f3a] group-hover:text-white"
+                    }`}
+                  >
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
                   </div>
                   <div className="min-w-0 flex-1">
-                    <span className="block truncate text-xs font-black text-white">
+                    <span
+                      className={`block truncate text-xs font-black ${
+                        view === "all" && !classId && !status ? "text-white" : "text-slate-900"
+                      }`}
+                    >
                       All Students
                     </span>
-                    <span className="block text-[11px] font-semibold text-sky-200">
+                    <span
+                      className={`inline-block mt-0.5 px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                        view === "all" && !classId && !status
+                          ? "bg-white/20 text-sky-100"
+                          : "bg-sky-50 text-sky-800 border border-sky-200/60 font-black"
+                      }`}
+                    >
                       {totalActive} Enrolled
                     </span>
                   </div>
                 </Link>
 
-                {/* 2. Each Class Colorful Button */}
-                {classOptions.map((c, idx) => {
+                {/* 2. Each Class Clean Button: Cap icon on left (no duplicate text), class title on right */}
+                {classOptions.map((c) => {
                   const isSelected = classId === c.id && status !== "left";
-                  const palette = CLASS_PALETTES[idx % CLASS_PALETTES.length];
-                  const shortBadge = c.name.replace(/^Class\s+/i, "C-").slice(0, 5);
 
                   return (
                     <Link
                       key={c.id}
                       href={buildQuery({ class: c.id, view: "" })}
                       className={`group relative flex items-center gap-3 rounded-2xl p-3 border transition-all duration-150 cursor-pointer shadow-2xs hover:shadow-sm hover:-translate-y-0.5 ${
-                        isSelected ? palette.active : `${palette.card}`
+                        isSelected
+                          ? "bg-gradient-to-br from-[#0b1f3a] via-[#102d54] to-[#1a5276] text-white border-transparent shadow-md ring-2 ring-sky-400"
+                          : "border-slate-200/90 bg-white hover:border-[#1a5276] hover:bg-slate-50/80 text-slate-900"
                       }`}
                     >
                       <div
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-black text-xs uppercase shadow-xs transition-transform group-hover:scale-105 ${
-                          isSelected ? "bg-white/20 text-white" : palette.badge
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-xs transition-transform group-hover:scale-105 ${
+                          isSelected
+                            ? "bg-white/20 text-white"
+                            : "bg-sky-50 text-sky-700 border border-sky-100 group-hover:bg-[#0b1f3a] group-hover:text-white"
                         }`}
                       >
-                        {shortBadge}
+                        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+                          <path d="M6 12v5c3 3 9 3 12 0v-5" />
+                        </svg>
                       </div>
                       <div className="min-w-0 flex-1">
                         <span
@@ -473,7 +443,11 @@ export default async function PrincipalStudentsPage({
                         </span>
                         <span
                           className={`inline-block mt-0.5 px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                            isSelected ? "bg-white/20 text-white" : palette.countPill
+                            isSelected
+                              ? "bg-white/20 text-sky-100"
+                              : c.count > 0
+                              ? "bg-emerald-50 text-emerald-800 border border-emerald-200/60 font-black"
+                              : "bg-slate-100 text-slate-500"
                           }`}
                         >
                           {c.count} {c.count === 1 ? "student" : "students"}
@@ -485,7 +459,7 @@ export default async function PrincipalStudentsPage({
 
                 {/* 3. Left School Quick Link Button */}
                 <Link
-                  href={buildQuery({ status: status === "left" ? "" : "left", class: "" })}
+                  href={buildQuery({ status: status === "left" ? "" : "left", class: "", view: "" })}
                   className={`group relative flex items-center gap-3 rounded-2xl p-3 border transition-all duration-150 cursor-pointer shadow-2xs hover:shadow-sm hover:-translate-y-0.5 ${
                     status === "left" && !classId
                       ? "bg-rose-700 text-white border-rose-700 shadow-md ring-2 ring-rose-400"
@@ -493,7 +467,7 @@ export default async function PrincipalStudentsPage({
                   }`}
                 >
                   <div
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-black text-xs uppercase shadow-xs transition-transform group-hover:scale-105 ${
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-base shadow-xs transition-transform group-hover:scale-105 ${
                       status === "left" && !classId ? "bg-white/20 text-white" : "bg-rose-600 text-white"
                     }`}
                   >
@@ -553,172 +527,194 @@ export default async function PrincipalStudentsPage({
                 )}
               </div>
             </section>
-            {/* Complete Students Directory Table */}
-            <section className="rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
-                <div>
-                  <h2 className="text-lg font-bold text-[#0b1f3a]">
-                    {status === "left"
-                      ? (activeClass ? `Left Students in ${activeClass.name}` : "Left School Students")
-                      : status === "active"
-                      ? (activeClass ? `Active Students in ${activeClass.name}` : "Active Students")
-                      : activeClass
-                      ? `Students in ${activeClass.name}`
-                      : "All Students"}
-                  </h2>
-                  <p className="text-xs text-slate-500">
-                    {list.length} student{list.length !== 1 ? "s" : ""} found
-                    {q.trim() ? ` · Matching “${q.trim()}”` : ""}
-                    {status ? ` · Status: ${status}` : ""}
-                  </p>
-                </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
-                    {list.length} Shown
-                  </span>
-                  <Link
-                    href="/principal/students"
-                    className="inline-flex items-center gap-1 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-700 px-3 py-1 text-xs font-bold text-slate-600 transition"
-                    title="Close Directory"
-                  >
-                    ✕ Close Directory
-                  </Link>
+            {/* Students Table or Prompt to Select Class */}
+            {!hasTableSelection ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 sm:p-10 text-center shadow-xs">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-50 text-sky-700 text-xl font-bold shadow-xs">
+                  🎓
                 </div>
+                <h3 className="mt-3 text-sm font-bold text-slate-800">
+                  Select a Class to View Students
+                </h3>
+                <p className="mt-1 text-xs text-slate-500 max-w-sm mx-auto">
+                  Click on any class button above or &ldquo;All Students&rdquo; to load student records.
+                </p>
               </div>
+            ) : (
+              <section className="rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                  <div>
+                    <h2 className="text-lg font-bold text-[#0b1f3a]">
+                      {status === "left"
+                        ? (activeClass ? `Left Students in ${activeClass.name}` : "Left School Students")
+                        : status === "active"
+                        ? (activeClass ? `Active Students in ${activeClass.name}` : "Active Students")
+                        : activeClass
+                        ? `Students in ${activeClass.name}`
+                        : "All Students"}
+                    </h2>
+                    <p className="text-xs text-slate-500">
+                      {list.length} student{list.length !== 1 ? "s" : ""} found
+                      {q.trim() ? ` · Matching “${q.trim()}”` : ""}
+                      {status ? ` · Status: ${status}` : ""}
+                    </p>
+                  </div>
 
-              {!list.length ? (
-                <div className="py-14 text-center">
-                  <p className="text-sm font-semibold text-slate-600">No students match this search or filter.</p>
-                  <Link
-                    href={classId ? `/principal/students?class=${classId}` : "/principal/students?view=all"}
-                    className="mt-2 inline-block text-xs font-bold text-brand-navy underline"
-                  >
-                    Clear search filter
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+                      {list.length} Shown
+                    </span>
+                    <Link
+                      href="/principal/students?open=1"
+                      className="inline-flex items-center gap-1 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-700 px-3 py-1 text-xs font-bold text-slate-600 transition cursor-pointer"
+                      title="Close Student List"
+                    >
+                      ✕ Close List
+                    </Link>
+                    <Link
+                      href="/principal/students"
+                      className="inline-flex items-center gap-1 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-700 px-3 py-1 text-xs font-bold text-slate-600 transition"
+                      title="Close Directory"
+                    >
+                      ✕ Close Directory
+                    </Link>
+                  </div>
                 </div>
-              ) : (
-                <div className="overflow-x-auto mt-2">
-                  <table className="w-full min-w-[760px] text-left text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                        <th className="py-3 pr-4">Student</th>
-                        <th className="py-3 pr-4">Admission No</th>
-                        <th className="py-3 pr-4">Class</th>
-                        <th className="py-3 pr-4">Father Name</th>
-                        <th className="py-3 pr-4">Guardian Phone</th>
-                        <th className="py-3 pr-4">Status</th>
-                        <th className="py-3 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {list.map((s) => (
-                        <tr key={s.id} className="hover:bg-slate-50/70 transition-colors">
-                          {/* Student Info */}
-                          <td className="py-3.5 pr-4">
-                            <div className="flex items-center gap-3">
-                              <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-slate-600 font-bold border border-slate-200">
-                                {s.photo_url ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img
-                                    src={s.photo_url}
-                                    alt={s.name}
-                                    className="h-full w-full object-cover"
-                                  />
-                                ) : (
-                                  <span className="text-xs font-bold text-[#0b1f3a]">
-                                    {s.name
-                                      .split(/\s+/)
-                                      .filter(Boolean)
-                                      .slice(0, 2)
-                                      .map((p: string) => p[0]?.toUpperCase() || "")
-                                      .join("") || "?"}
-                                  </span>
-                                )}
-                                {s.status === "active" && (
-                                  <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />
-                                )}
+
+                {!list.length ? (
+                  <div className="py-14 text-center">
+                    <p className="text-sm font-semibold text-slate-600">No students match this search or filter.</p>
+                    <Link
+                      href={classId ? `/principal/students?class=${classId}` : "/principal/students?view=all"}
+                      className="mt-2 inline-block text-xs font-bold text-brand-navy underline"
+                    >
+                      Clear search filter
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto mt-2">
+                    <table className="w-full min-w-[760px] text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                          <th className="py-3 pr-4">Student</th>
+                          <th className="py-3 pr-4">Admission No</th>
+                          <th className="py-3 pr-4">Class</th>
+                          <th className="py-3 pr-4">Father Name</th>
+                          <th className="py-3 pr-4">Guardian Phone</th>
+                          <th className="py-3 pr-4">Status</th>
+                          <th className="py-3 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {list.map((s) => (
+                          <tr key={s.id} className="hover:bg-slate-50/70 transition-colors">
+                            {/* Student Info */}
+                            <td className="py-3.5 pr-4">
+                              <div className="flex items-center gap-3">
+                                <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-slate-600 font-bold border border-slate-200">
+                                  {s.photo_url ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={s.photo_url}
+                                      alt={s.name}
+                                      className="h-full w-full object-cover"
+                                    />
+                                  ) : (
+                                    <span className="text-xs font-bold text-[#0b1f3a]">
+                                      {s.name
+                                        .split(/\s+/)
+                                        .filter(Boolean)
+                                        .slice(0, 2)
+                                        .map((p: string) => p[0]?.toUpperCase() || "")
+                                        .join("") || "?"}
+                                    </span>
+                                  )}
+                                  {s.status === "active" && (
+                                    <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white" />
+                                  )}
+                                </div>
+                                <div>
+                                  <Link
+                                    href={`/principal/students/${s.id}`}
+                                    className="font-bold text-[#0b1f3a] hover:text-brand-accent transition-colors"
+                                  >
+                                    {s.name}
+                                  </Link>
+                                  <p className="text-xs text-slate-400">
+                                    Roll No: {s.roll_no != null ? s.roll_no : "—"}
+                                  </p>
+                                </div>
                               </div>
-                              <div>
+                            </td>
+
+                            {/* Admission No with standard ADM-XX formatting */}
+                            <td className="py-3.5 pr-4 text-xs font-bold text-slate-700 tabular-nums">
+                              {formatAdmissionNo(s.admission_no)}
+                            </td>
+
+                            {/* Class */}
+                            <td className="py-3.5 pr-4">
+                              <span className="inline-flex items-center rounded-lg bg-sky-50 border border-sky-100 px-2.5 py-1 text-xs font-bold text-sky-800">
+                                {classNameOf(s.sections) || "—"}
+                              </span>
+                            </td>
+
+                            {/* Father Name */}
+                            <td className="py-3.5 pr-4 text-xs font-medium text-slate-600">
+                              {s.father_name || "—"}
+                            </td>
+
+                            {/* Guardian Phone */}
+                            <td className="py-3.5 pr-4 text-xs font-medium text-slate-600">
+                              {s.guardian_phone || "—"}
+                            </td>
+
+                            {/* Status */}
+                            <td className="py-3.5 pr-4">
+                              <span
+                                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                                  s.status === "active"
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : "bg-slate-100 text-slate-700"
+                                }`}
+                              >
+                                {s.status ? s.status.charAt(0).toUpperCase() + s.status.slice(1) : "—"}
+                              </span>
+                            </td>
+
+                            {/* Actions */}
+                            <td className="py-3.5 text-right">
+                              <div className="inline-flex items-center gap-2">
                                 <Link
                                   href={`/principal/students/${s.id}`}
-                                  className="font-bold text-[#0b1f3a] hover:text-brand-accent transition-colors"
+                                  className="inline-flex items-center gap-1 rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-xs transition hover:border-slate-400 hover:bg-slate-50"
                                 >
-                                  {s.name}
+                                  Profile →
                                 </Link>
-                                <p className="text-xs text-slate-400">
-                                  Roll No: {s.roll_no != null ? s.roll_no : "—"}
-                                </p>
+                                <form action={setStudentStatus.bind(null, s.id, s.status === "active" ? "left" : "active")}>
+                                  <button
+                                    type="submit"
+                                    className={`rounded-xl px-2.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+                                      s.status === "active"
+                                        ? "text-amber-700 hover:bg-amber-50"
+                                        : "text-emerald-700 hover:bg-emerald-50"
+                                    }`}
+                                    title={s.status === "active" ? "Mark this student as Left School" : "Re-activate this student"}
+                                  >
+                                    {s.status === "active" ? "Mark left" : "Mark active"}
+                                  </button>
+                                </form>
                               </div>
-                            </div>
-                          </td>
-
-                          {/* Admission No */}
-                          <td className="py-3.5 pr-4 text-xs font-bold text-slate-700 tabular-nums">
-                            {s.admission_no}
-                          </td>
-
-                          {/* Class */}
-                          <td className="py-3.5 pr-4">
-                            <span className="inline-flex items-center rounded-lg bg-sky-50 border border-sky-100 px-2.5 py-1 text-xs font-bold text-sky-800">
-                              {classNameOf(s.sections) || "—"}
-                            </span>
-                          </td>
-
-                          {/* Father Name */}
-                          <td className="py-3.5 pr-4 text-xs font-medium text-slate-600">
-                            {s.father_name || "—"}
-                          </td>
-
-                          {/* Guardian Phone */}
-                          <td className="py-3.5 pr-4 text-xs font-medium text-slate-600">
-                            {s.guardian_phone || "—"}
-                          </td>
-
-                          {/* Status */}
-                          <td className="py-3.5 pr-4">
-                            <span
-                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                                s.status === "active"
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : "bg-slate-100 text-slate-700"
-                              }`}
-                            >
-                              {s.status ? s.status.charAt(0).toUpperCase() + s.status.slice(1) : "—"}
-                            </span>
-                          </td>
-
-                          {/* Actions */}
-                          <td className="py-3.5 text-right">
-                            <div className="inline-flex items-center gap-2">
-                              <Link
-                                href={`/principal/students/${s.id}`}
-                                className="inline-flex items-center gap-1 rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-xs transition hover:border-slate-400 hover:bg-slate-50"
-                              >
-                                Profile →
-                              </Link>
-                              <form action={setStudentStatus.bind(null, s.id, s.status === "active" ? "left" : "active")}>
-                                <button
-                                  type="submit"
-                                  className={`rounded-xl px-2.5 py-1.5 text-xs font-bold transition cursor-pointer ${
-                                    s.status === "active"
-                                      ? "text-amber-700 hover:bg-amber-50"
-                                      : "text-emerald-700 hover:bg-emerald-50"
-                                  }`}
-                                  title={s.status === "active" ? "Mark this student as Left School" : "Re-activate this student"}
-                                >
-                                  {s.status === "active" ? "Mark left" : "Mark active"}
-                                </button>
-                              </form>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+            )}
           </>
         )}
       </div>
