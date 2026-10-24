@@ -46,7 +46,7 @@ export default function LoginPage() {
       />
 
       {/* Main Login Card */}
-      <div className="relative z-10 w-full max-w-md overflow-hidden rounded-3xl border border-white/[0.1] bg-[#091b33]/90 p-8 shadow-[0_20px_60px_rgba(3,10,20,0.6)] backdrop-blur-xl sm:p-10">
+      <div className="relative z-10 w-full max-w-md overflow-hidden rounded-3xl border border-white/[0.1] bg-[#091b33]/90 p-5 sm:p-8 md:p-10 shadow-[0_20px_60px_rgba(3,10,20,0.6)] backdrop-blur-xl">
         <div className="mb-6 flex items-center justify-between">
           <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-300">
             Institutional Login

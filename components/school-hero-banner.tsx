@@ -12,7 +12,7 @@ import { SCHOOL } from "@/lib/brand";
 export function SchoolHeroBanner() {
   return (
     <section className="shrink-0 overflow-hidden rounded-[1.15rem] border border-[#c5d8eb]/80 shadow-[0_2px_12px_rgba(12,45,94,0.06)]">
-      <div className="relative h-[10.75rem] w-full overflow-hidden bg-gradient-to-r from-[#cae4fa] via-[#dcedfb] to-[#e8f3fc] sm:h-[11.5rem] md:h-[12.25rem] lg:h-[13rem]">
+      <div className="relative h-[9.25rem] w-full overflow-hidden bg-gradient-to-r from-[#cae4fa] via-[#dcedfb] to-[#e8f3fc] sm:h-[10.75rem] md:h-[12rem] lg:h-[12.75rem]">
         {/* Right panel: Real campus photo smoothly feathered from left into the background */}
         <div
           className="absolute inset-y-0 right-0 z-0 w-[65%] opacity-30 sm:opacity-75 md:opacity-100 sm:w-[62%] md:w-[60%]"
