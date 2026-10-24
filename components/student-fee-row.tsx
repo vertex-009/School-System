@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { updateStudentFee } from "@/lib/actions";
 
 interface StudentFeeRowProps {
@@ -24,17 +25,32 @@ export function StudentFeeRow({
   showAdmissionFee = false,
   canEdit = true,
 }: StudentFeeRowProps) {
+  const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
 
-  const [admissionFee, setAdmissionFee] = useState<number>(initAdmission || 0);
-  const [monthlyFee, setMonthlyFee] = useState<number>(initMonthly || 0);
-  const [transportFee, setTransportFee] = useState<number>(initTransport || 0);
-  const [miscFee, setMiscFee] = useState<number>(initMisc || 0);
-  const [discount, setDiscount] = useState<number>(initDiscount || 0);
+  const [admissionFee, setAdmissionFee] = useState<string>(initAdmission ? String(initAdmission) : "");
+  const [monthlyFee, setMonthlyFee] = useState<string>(initMonthly ? String(initMonthly) : "");
+  const [transportFee, setTransportFee] = useState<string>(initTransport ? String(initTransport) : "");
+  const [miscFee, setMiscFee] = useState<string>(initMisc ? String(initMisc) : "");
+  const [discount, setDiscount] = useState<string>(initDiscount ? String(initDiscount) : "");
 
-  const netMonthly = Math.max(0, monthlyFee + transportFee + miscFee - discount);
+  useEffect(() => {
+    setAdmissionFee(initAdmission ? String(initAdmission) : "");
+    setMonthlyFee(initMonthly ? String(initMonthly) : "");
+    setTransportFee(initTransport ? String(initTransport) : "");
+    setMiscFee(initMisc ? String(initMisc) : "");
+    setDiscount(initDiscount ? String(initDiscount) : "");
+  }, [initAdmission, initMonthly, initTransport, initMisc, initDiscount]);
+
+  const numMonthly = Number(monthlyFee) || 0;
+  const numTransport = Number(transportFee) || 0;
+  const numMisc = Number(miscFee) || 0;
+  const numDiscount = Number(discount) || 0;
+  const numAdmission = Number(admissionFee) || 0;
+
+  const netMonthly = Math.max(0, numMonthly + numTransport + numMisc - numDiscount);
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -42,11 +58,18 @@ export function StudentFeeRow({
     setMessage(null);
 
     const fd = new FormData(e.currentTarget);
+    fd.set("admission_fee", String(numAdmission));
+    fd.set("monthly_fee", String(numMonthly));
+    fd.set("transport_fee", String(numTransport));
+    fd.set("misc_fee", String(numMisc));
+    fd.set("discount", String(numDiscount));
+
     try {
       const res = await updateStudentFee(studentId, fd);
       if (res?.ok) {
         setMessage({ text: "Fee structure updated successfully", ok: true });
         setIsEditing(false);
+        router.refresh();
       } else {
         setMessage({
           text: res?.error || "Failed to update fee",
@@ -61,6 +84,11 @@ export function StudentFeeRow({
     } finally {
       setPending(false);
     }
+  };
+
+  const handleNumericChange = (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.replace(/\D/g, "");
+    setter(val);
   };
 
   return (
@@ -105,17 +133,16 @@ export function StudentFeeRow({
         </div>
       )}
 
-      {/* Read View: Shown in a row */}
+      {/* Read View: Clean row of cards */}
       {!isEditing ? (
         <div className={`grid gap-3 ${showAdmissionFee ? "grid-cols-2 sm:grid-cols-3 md:grid-cols-6" : "grid-cols-2 sm:grid-cols-3 md:grid-cols-5"}`}>
-          {/* Optional Admission Fee */}
           {showAdmissionFee && (
             <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-3">
               <span className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
                 Admission Fee
               </span>
               <span className="mt-1 block text-sm font-extrabold text-slate-800 tabular-nums">
-                Rs. {Number(admissionFee).toLocaleString()}
+                Rs. {numAdmission.toLocaleString()}
               </span>
             </div>
           )}
@@ -126,7 +153,7 @@ export function StudentFeeRow({
               Monthly Tuition
             </span>
             <span className="mt-1 block text-sm font-extrabold text-slate-800 tabular-nums">
-              Rs. {Number(monthlyFee).toLocaleString()}
+              Rs. {numMonthly.toLocaleString()}
             </span>
           </div>
 
@@ -136,7 +163,7 @@ export function StudentFeeRow({
               Transport Fee
             </span>
             <span className="mt-1 block text-sm font-extrabold text-slate-800 tabular-nums">
-              Rs. {Number(transportFee).toLocaleString()}
+              Rs. {numTransport.toLocaleString()}
             </span>
           </div>
 
@@ -146,7 +173,7 @@ export function StudentFeeRow({
               Misc Charges
             </span>
             <span className="mt-1 block text-sm font-extrabold text-slate-800 tabular-nums">
-              Rs. {Number(miscFee).toLocaleString()}
+              Rs. {numMisc.toLocaleString()}
             </span>
           </div>
 
@@ -156,7 +183,7 @@ export function StudentFeeRow({
               Monthly Discount
             </span>
             <span className="mt-1 block text-sm font-extrabold text-amber-700 tabular-nums">
-              {discount > 0 ? `- Rs. ${Number(discount).toLocaleString()}` : "Rs. 0"}
+              {numDiscount > 0 ? `- Rs. ${numDiscount.toLocaleString()}` : "Rs. 0"}
             </span>
           </div>
 
@@ -166,12 +193,12 @@ export function StudentFeeRow({
               Net Monthly Fee
             </span>
             <span className="mt-1 block text-base font-black text-emerald-900 tabular-nums">
-              Rs. {Number(netMonthly).toLocaleString()}
+              Rs. {netMonthly.toLocaleString()}
             </span>
           </div>
         </div>
       ) : (
-        /* Edit Form: In-row inputs with Live Calculation */
+        /* Edit Form: Pure digit input boxes with no browser spinner/dropdown arrows */
         <form onSubmit={handleSave} className="space-y-4">
           <div className={`grid gap-3 rounded-2xl border border-slate-200 bg-slate-50/90 p-3.5 ${showAdmissionFee ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-5" : "grid-cols-1 sm:grid-cols-2 md:grid-cols-4"}`}>
             {showAdmissionFee ? (
@@ -180,16 +207,18 @@ export function StudentFeeRow({
                   Admission Fee (PKR)
                 </label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   name="admission_fee"
-                  min={0}
                   value={admissionFee}
-                  onChange={(e) => setAdmissionFee(Math.max(0, Number(e.target.value) || 0))}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-brand-navy focus:outline-none"
+                  onChange={handleNumericChange(setAdmissionFee)}
+                  placeholder="0"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-brand-navy focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
               </div>
             ) : (
-              <input type="hidden" name="admission_fee" value={admissionFee} />
+              <input type="hidden" name="admission_fee" value={numAdmission} />
             )}
 
             <div>
@@ -197,12 +226,14 @@ export function StudentFeeRow({
                 Monthly Tuition (PKR)
               </label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 name="monthly_fee"
-                min={0}
                 value={monthlyFee}
-                onChange={(e) => setMonthlyFee(Math.max(0, Number(e.target.value) || 0))}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-brand-navy focus:outline-none"
+                onChange={handleNumericChange(setMonthlyFee)}
+                placeholder="0"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-brand-navy focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
             </div>
 
@@ -211,12 +242,14 @@ export function StudentFeeRow({
                 Transport Fee (PKR)
               </label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 name="transport_fee"
-                min={0}
                 value={transportFee}
-                onChange={(e) => setTransportFee(Math.max(0, Number(e.target.value) || 0))}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-brand-navy focus:outline-none"
+                onChange={handleNumericChange(setTransportFee)}
+                placeholder="0"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-brand-navy focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
             </div>
 
@@ -225,12 +258,14 @@ export function StudentFeeRow({
                 Misc Charges (PKR)
               </label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 name="misc_fee"
-                min={0}
                 value={miscFee}
-                onChange={(e) => setMiscFee(Math.max(0, Number(e.target.value) || 0))}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-brand-navy focus:outline-none"
+                onChange={handleNumericChange(setMiscFee)}
+                placeholder="0"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-brand-navy focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
             </div>
 
@@ -239,12 +274,14 @@ export function StudentFeeRow({
                 Monthly Discount (PKR)
               </label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 name="discount"
-                min={0}
                 value={discount}
-                onChange={(e) => setDiscount(Math.max(0, Number(e.target.value) || 0))}
-                className="w-full rounded-xl border border-amber-200 bg-amber-50/40 px-3 py-2 text-xs font-semibold text-slate-800 focus:border-amber-400 focus:outline-none"
+                onChange={handleNumericChange(setDiscount)}
+                placeholder="0"
+                className="w-full rounded-xl border border-amber-200 bg-amber-50/40 px-3 py-2 text-xs font-semibold text-slate-800 focus:border-amber-400 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
             </div>
           </div>
@@ -253,7 +290,7 @@ export function StudentFeeRow({
             <div className="flex items-center gap-2 text-xs text-slate-600">
               <span className="font-semibold">Calculated Net Monthly:</span>
               <span className="font-extrabold text-emerald-700 text-sm">
-                Rs. {Number(netMonthly).toLocaleString()}
+                Rs. {netMonthly.toLocaleString()}
               </span>
             </div>
 
@@ -262,11 +299,11 @@ export function StudentFeeRow({
                 type="button"
                 disabled={pending}
                 onClick={() => {
-                  setAdmissionFee(initAdmission || 0);
-                  setMonthlyFee(initMonthly || 0);
-                  setTransportFee(initTransport || 0);
-                  setMiscFee(initMisc || 0);
-                  setDiscount(initDiscount || 0);
+                  setAdmissionFee(initAdmission ? String(initAdmission) : "");
+                  setMonthlyFee(initMonthly ? String(initMonthly) : "");
+                  setTransportFee(initTransport ? String(initTransport) : "");
+                  setMiscFee(initMisc ? String(initMisc) : "");
+                  setDiscount(initDiscount ? String(initDiscount) : "");
                   setIsEditing(false);
                 }}
                 className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
@@ -287,4 +324,3 @@ export function StudentFeeRow({
     </div>
   );
 }
-

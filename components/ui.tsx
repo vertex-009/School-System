@@ -27,7 +27,7 @@ export function Field(
       </div>
       <input
         {...rest}
-        className={`mt-1.5 w-full rounded-xl border px-3 py-2.5 text-sm text-slate-900 outline-none transition ${
+        className={`mt-1.5 w-full rounded-xl border px-3 py-2.5 text-sm text-slate-900 outline-none transition [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
           isErr
             ? "border-rose-400 bg-rose-50/30 text-rose-950 focus:border-rose-500 focus:bg-white focus:ring-2 focus:ring-rose-500/30"
             : "border-slate-200 bg-slate-50 focus:border-brand-sky focus:bg-white focus:ring-2 focus:ring-brand-sky/40"

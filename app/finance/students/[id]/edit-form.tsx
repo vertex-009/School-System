@@ -78,6 +78,15 @@ export function EditStudentForm({
     }
   };
 
+  const handleDigitChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    const digitsOnly = value.replace(/\D/g, "");
+    setFormData((prev) => ({ ...prev, [name]: digitsOnly }));
+    if (result?.field === name) {
+      setResult(null);
+    }
+  };
+
   const handleCnicChange = (formatted: string) => {
     setFormData((prev) => ({ ...prev, cnic: formatted }));
     if (result?.field === "cnic") {
@@ -92,6 +101,13 @@ export function EditStudentForm({
 
     const fd = new FormData(e.currentTarget);
     fd.set("cnic", formData.cnic);
+    fd.set("admission_no", formData.admission_no);
+    fd.set("class_id", formData.class_id);
+    fd.set("admission_fee", String(Number(formData.admission_fee) || 0));
+    fd.set("monthly_fee", String(Number(formData.monthly_fee) || 0));
+    fd.set("transport_fee", String(Number(formData.transport_fee) || 0));
+    fd.set("misc_fee", String(Number(formData.misc_fee) || 0));
+    fd.set("discount", String(Number(formData.discount) || 0));
 
     try {
       const res = await saveStudent(fd);
@@ -214,9 +230,12 @@ export function EditStudentForm({
         <Field
           label="Roll number"
           name="roll_no"
-          type="number"
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
           value={formData.roll_no}
-          onChange={handleChange}
+          onChange={handleDigitChange}
+          placeholder="e.g. 15"
         />
 
         <Select
@@ -244,7 +263,7 @@ export function EditStudentForm({
           <option value="left">Left</option>
         </Select>
 
-        {/* Fee & Discount Section */}
+        {/* Fee & Discount Section: Clean digit boxes with no stepper dropdown arrows */}
         <div className="md:col-span-2 pt-3 border-t border-slate-200/90">
           <div className="flex items-center gap-2 mb-2.5">
             <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 font-bold text-xs shadow-xs">
@@ -264,47 +283,52 @@ export function EditStudentForm({
             <Field
               label="Admission fee (PKR)"
               name="admission_fee"
-              type="number"
-              min={0}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               placeholder="0"
               value={formData.admission_fee}
-              onChange={handleChange}
+              onChange={handleDigitChange}
             />
             <Field
               label="Monthly tuition (PKR)"
               name="monthly_fee"
-              type="number"
-              min={0}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               placeholder="0"
               value={formData.monthly_fee}
-              onChange={handleChange}
+              onChange={handleDigitChange}
             />
             <Field
               label="Transport fee (PKR)"
               name="transport_fee"
-              type="number"
-              min={0}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               placeholder="0"
               value={formData.transport_fee}
-              onChange={handleChange}
+              onChange={handleDigitChange}
             />
             <Field
               label="Misc charges (PKR)"
               name="misc_fee"
-              type="number"
-              min={0}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               placeholder="0"
               value={formData.misc_fee}
-              onChange={handleChange}
+              onChange={handleDigitChange}
             />
             <Field
               label="Monthly discount (PKR)"
               name="discount"
-              type="number"
-              min={0}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               placeholder="0"
               value={formData.discount}
-              onChange={handleChange}
+              onChange={handleDigitChange}
             />
           </div>
         </div>

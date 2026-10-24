@@ -732,18 +732,40 @@ export async function saveStudent(formData: FormData) {
     ? await supabase.from("students").update(payload).eq("id", id).select("id").maybeSingle()
     : await supabase.from("students").insert(payload).select("id").maybeSingle();
 
-  // If DB hasn't run the fee, discount or joined_on column migration on students yet, retry without those keys
-  if (error && error.message.toLowerCase().includes("column") && (
-    error.message.toLowerCase().includes("fee") ||
-    error.message.toLowerCase().includes("discount") ||
-    error.message.toLowerCase().includes("joined_on")
-  )) {
-    delete payload.admission_fee;
-    delete payload.monthly_fee;
-    delete payload.transport_fee;
-    delete payload.misc_fee;
-    delete payload.discount;
-    delete payload.joined_on;
+  // Granular column fallback if some columns don't exist in the students table
+  const optionalColumns = ["admission_fee", "transport_fee", "misc_fee", "discount", "monthly_fee", "joined_on", "cnic"] as const;
+  for (let attempt = 0; attempt < optionalColumns.length; attempt++) {
+    if (!error) break;
+    const msg = error.message.toLowerCase();
+    if (!msg.includes("column") && !msg.includes("does not exist")) break;
+
+    let deletedAny = false;
+    for (const col of optionalColumns) {
+      if (col in payload && msg.includes(col)) {
+        delete payload[col];
+        deletedAny = true;
+      }
+    }
+
+    if (!deletedAny) {
+      if (msg.includes("fee") || msg.includes("discount")) {
+        delete payload.admission_fee;
+        delete payload.transport_fee;
+        delete payload.misc_fee;
+        delete payload.discount;
+        delete payload.monthly_fee;
+        deletedAny = true;
+      } else if (msg.includes("joined_on")) {
+        delete payload.joined_on;
+        deletedAny = true;
+      } else if (msg.includes("cnic")) {
+        delete payload.cnic;
+        deletedAny = true;
+      }
+    }
+
+    if (!deletedAny) break;
+
     const retry = id
       ? await supabase.from("students").update(payload).eq("id", id).select("id").maybeSingle()
       : await supabase.from("students").insert(payload).select("id").maybeSingle();
@@ -751,14 +773,18 @@ export async function saveStudent(formData: FormData) {
     error = retry.error;
   }
 
-  // If DB hasn't run the CNIC column migration on students yet, retry without cnic
-  if (error && error.message.toLowerCase().includes("cnic") && error.message.toLowerCase().includes("column")) {
-    delete payload.cnic;
-    const retry = id
-      ? await supabase.from("students").update(payload).eq("id", id).select("id").maybeSingle()
-      : await supabase.from("students").insert(payload).select("id").maybeSingle();
-    saved = retry.data;
-    error = retry.error;
+  // Backup sync to class fee_structure if student class fee is zero or missing
+  if (classId && monthly_fee > 0) {
+    try {
+      const { data: fs } = await supabase.from("fee_structure").select("id, monthly_fee").eq("class_id", classId).maybeSingle();
+      if (!fs) {
+        await supabase.from("fee_structure").insert({ school_id: schoolId, class_id: classId, monthly_fee });
+      } else if (!fs.monthly_fee || Number(fs.monthly_fee) === 0) {
+        await supabase.from("fee_structure").update({ monthly_fee }).eq("id", fs.id);
+      }
+    } catch {
+      // Non-blocking fallback
+    }
   }
 
   if (error) {
@@ -2418,17 +2444,59 @@ export async function updateStudentFee(studentId: string, formData: FormData) {
   const misc_fee = Number(formData.get("misc_fee") || 0);
   const discount = Number(formData.get("discount") || 0);
 
-  const { error } = await ctx.supabase
+  const payload: Record<string, number> = {
+    monthly_fee: Math.max(0, isNaN(monthly_fee) ? 0 : monthly_fee),
+    transport_fee: Math.max(0, isNaN(transport_fee) ? 0 : transport_fee),
+    misc_fee: Math.max(0, isNaN(misc_fee) ? 0 : misc_fee),
+    discount: Math.max(0, isNaN(discount) ? 0 : discount),
+  };
+  if (formData.has("admission_fee") && formData.get("admission_fee") !== "") {
+    payload.admission_fee = Math.max(0, isNaN(admission_fee) ? 0 : admission_fee);
+  }
+
+  let { error } = await ctx.supabase
     .from("students")
-    .update({
-      admission_fee: Math.max(0, isNaN(admission_fee) ? 0 : admission_fee),
-      monthly_fee: Math.max(0, isNaN(monthly_fee) ? 0 : monthly_fee),
-      transport_fee: Math.max(0, isNaN(transport_fee) ? 0 : transport_fee),
-      misc_fee: Math.max(0, isNaN(misc_fee) ? 0 : misc_fee),
-      discount: Math.max(0, isNaN(discount) ? 0 : discount),
-    })
+    .update(payload)
     .eq("id", studentId)
     .eq("school_id", ctx.schoolId);
+
+  // Granular column fallback if some columns don't exist
+  if (error && (error.message.toLowerCase().includes("column") || error.message.toLowerCase().includes("does not exist"))) {
+    const keysToCheck = ["admission_fee", "transport_fee", "misc_fee", "discount", "monthly_fee"] as const;
+    for (const key of keysToCheck) {
+      if (key in payload && error?.message.toLowerCase().includes(key)) {
+        delete payload[key];
+        const retry = await ctx.supabase
+          .from("students")
+          .update(payload)
+          .eq("id", studentId)
+          .eq("school_id", ctx.schoolId);
+        error = retry.error;
+      }
+    }
+  }
+
+  // Also sync to class fee_structure if monthly_fee was updated
+  if (monthly_fee > 0) {
+    try {
+      const { data: std } = await ctx.supabase
+        .from("students")
+        .select("section_id, sections(class_id)")
+        .eq("id", studentId)
+        .maybeSingle();
+      const classId = (std?.sections as any)?.class_id;
+      if (classId) {
+        const { data: fs } = await ctx.supabase.from("fee_structure").select("id, monthly_fee").eq("class_id", classId).maybeSingle();
+        if (!fs) {
+          await ctx.supabase.from("fee_structure").insert({ school_id: ctx.schoolId, class_id: classId, monthly_fee });
+        } else if (!fs.monthly_fee || Number(fs.monthly_fee) === 0) {
+          await ctx.supabase.from("fee_structure").update({ monthly_fee }).eq("id", fs.id);
+        }
+      }
+    } catch {
+      // Non-blocking
+    }
+  }
 
   if (error) {
     const isColumnMissing =
@@ -2437,7 +2505,7 @@ export async function updateStudentFee(studentId: string, formData: FormData) {
     if (isColumnMissing) {
       return {
         ok: false,
-        error: "Database migration required: Fee columns are not yet created in 'students' table.",
+        error: "Database migration required: Please run 'migration_student_fees_and_discount.sql' in Supabase SQL Editor.",
         migrationNeeded: true,
       };
     }

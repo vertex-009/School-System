@@ -9,6 +9,20 @@ import { CnicField } from "@/components/cnic-field";
 interface ClassItem {
   id: string;
   name: string;
+  fee_structure?: { monthly_fee: number }[] | { monthly_fee: number } | null;
+}
+
+function getClassFee(cls?: ClassItem): string {
+  if (!cls?.fee_structure) return "";
+  if (Array.isArray(cls.fee_structure)) {
+    const fee = cls.fee_structure[0]?.monthly_fee;
+    return fee && Number(fee) > 0 ? String(fee) : "";
+  }
+  if (typeof cls.fee_structure === "object" && "monthly_fee" in cls.fee_structure) {
+    const fee = (cls.fee_structure as { monthly_fee: number }).monthly_fee;
+    return fee && Number(fee) > 0 ? String(fee) : "";
+  }
+  return "";
 }
 
 export function NewStudentForm({
@@ -29,6 +43,9 @@ export function NewStudentForm({
     field?: string;
   } | null>(null);
 
+  const initialClass = classes[0];
+  const initialMonthlyFee = getClassFee(initialClass);
+
   const [formData, setFormData] = useState({
     name: "",
     father_name: "",
@@ -40,10 +57,10 @@ export function NewStudentForm({
     address: "",
     admission_no: defaultAdmissionNo,
     roll_no: "",
-    class_id: classes[0]?.id || "",
+    class_id: initialClass?.id || "",
     status: "active",
     admission_fee: "",
-    monthly_fee: "",
+    monthly_fee: initialMonthlyFee,
     transport_fee: "",
     misc_fee: "",
     discount: "",
@@ -53,6 +70,29 @@ export function NewStudentForm({
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     if (result?.field === name) {
+      setResult(null);
+    }
+  };
+
+  const handleDigitChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    const digitsOnly = value.replace(/\D/g, "");
+    setFormData((prev) => ({ ...prev, [name]: digitsOnly }));
+    if (result?.field === name) {
+      setResult(null);
+    }
+  };
+
+  const handleClassChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const classId = e.target.value;
+    const selectedClass = classes.find((c) => c.id === classId);
+    const feeFromClass = getClassFee(selectedClass);
+    setFormData((prev) => ({
+      ...prev,
+      class_id: classId,
+      monthly_fee: (!prev.monthly_fee || prev.monthly_fee === "0") && feeFromClass ? feeFromClass : prev.monthly_fee,
+    }));
+    if (result?.field === "class_id") {
       setResult(null);
     }
   };
@@ -71,6 +111,13 @@ export function NewStudentForm({
 
     const fd = new FormData(e.currentTarget);
     fd.set("cnic", formData.cnic);
+    fd.set("admission_no", formData.admission_no);
+    fd.set("class_id", formData.class_id);
+    fd.set("admission_fee", String(Number(formData.admission_fee) || 0));
+    fd.set("monthly_fee", String(Number(formData.monthly_fee) || 0));
+    fd.set("transport_fee", String(Number(formData.transport_fee) || 0));
+    fd.set("misc_fee", String(Number(formData.misc_fee) || 0));
+    fd.set("discount", String(Number(formData.discount) || 0));
 
     try {
       const res = await saveStudent(fd);
@@ -98,6 +145,14 @@ export function NewStudentForm({
   };
 
   const isCnicError = result?.field === "cnic" || (Boolean(result?.error) && result?.error?.toLowerCase().includes("cnic"));
+
+  const netMonthly = Math.max(
+    0,
+    (Number(formData.monthly_fee) || 0) +
+      (Number(formData.transport_fee) || 0) +
+      (Number(formData.misc_fee) || 0) -
+      (Number(formData.discount) || 0)
+  );
 
   return (
     <Card title="New student">
@@ -186,16 +241,18 @@ export function NewStudentForm({
           required
           value={formData.admission_no}
           onChange={handleChange}
-          placeholder="e.g. ADM-2024-001"
+          placeholder="e.g. 21"
           error={result?.field === "admission_no" ? result.error : undefined}
         />
 
         <Field
           label="Roll number (optional)"
           name="roll_no"
-          type="number"
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
           value={formData.roll_no}
-          onChange={handleChange}
+          onChange={handleDigitChange}
           placeholder="e.g. 15"
         />
 
@@ -204,7 +261,7 @@ export function NewStudentForm({
           name="class_id"
           required
           value={formData.class_id}
-          onChange={handleChange}
+          onChange={handleClassChange}
         >
           <option value="">Select class</option>
           {classes.map((c) => (
@@ -214,7 +271,7 @@ export function NewStudentForm({
           ))}
         </Select>
 
-        {/* Fee & Discount Section at admission time */}
+        {/* Fee & Discount Section at admission time: Clean digit boxes with no stepper dropdown arrows */}
         <div className="md:col-span-2 pt-3 border-t border-slate-200/90">
           <div className="flex items-center gap-2 mb-2.5">
             <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 font-bold text-xs shadow-xs">
@@ -234,48 +291,60 @@ export function NewStudentForm({
             <Field
               label="Admission fee (PKR)"
               name="admission_fee"
-              type="number"
-              min={0}
-              placeholder="e.g. 5000"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              placeholder="0"
               value={formData.admission_fee}
-              onChange={handleChange}
+              onChange={handleDigitChange}
             />
             <Field
               label="Monthly tuition (PKR)"
               name="monthly_fee"
-              type="number"
-              min={0}
-              placeholder="e.g. 3500"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              placeholder="0"
               value={formData.monthly_fee}
-              onChange={handleChange}
+              onChange={handleDigitChange}
             />
             <Field
               label="Transport fee (PKR)"
               name="transport_fee"
-              type="number"
-              min={0}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               placeholder="0"
               value={formData.transport_fee}
-              onChange={handleChange}
+              onChange={handleDigitChange}
             />
             <Field
               label="Misc charges (PKR)"
               name="misc_fee"
-              type="number"
-              min={0}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               placeholder="0"
               value={formData.misc_fee}
-              onChange={handleChange}
+              onChange={handleDigitChange}
             />
             <Field
               label="Monthly discount (PKR)"
               name="discount"
-              type="number"
-              min={0}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               placeholder="0"
               value={formData.discount}
-              onChange={handleChange}
+              onChange={handleDigitChange}
             />
+          </div>
+
+          <div className="mt-2.5 flex items-center justify-between text-xs text-slate-600 px-1">
+            <span className="font-semibold">Calculated Net Monthly:</span>
+            <span className="font-extrabold text-emerald-700 text-sm">
+              Rs. {netMonthly.toLocaleString()}
+            </span>
           </div>
         </div>
 
@@ -295,4 +364,3 @@ export function NewStudentForm({
     </Card>
   );
 }
-
