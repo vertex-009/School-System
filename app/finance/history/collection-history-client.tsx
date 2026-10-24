@@ -140,19 +140,6 @@ export function CollectionHistoryClient({
           </div>
         </div>
 
-        {/* Text-type Monthly Fee Collection Statement */}
-        <div className="mt-5 rounded-xl border border-slate-100 bg-slate-50/70 p-4">
-          <p className="text-sm leading-relaxed text-slate-700">
-            For <span className="font-bold text-brand-navy">{period.label}</span>, a total of{" "}
-            <span className="font-bold text-brand-navy">{rows.length} fee invoices</span> were generated amounting to{" "}
-            <span className="font-bold text-brand-navy">{pkr(totalBilled)}</span>. Out of these,{" "}
-            <span className="font-bold text-emerald-700">{pkr(totalCollected)}</span> has been successfully collected across{" "}
-            <span className="font-bold text-emerald-700">{paid.length} cleared student records</span>, while{" "}
-            <span className="font-bold text-rose-700">{pkr(totalUnpaid)}</span> remains pending across{" "}
-            <span className="font-bold text-rose-700">{unpaid.length} unpaid / partial invoices</span>.
-          </p>
-        </div>
-
         {/* Metric Cards inside Top Box */}
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-xl border border-slate-100 bg-white p-3.5 shadow-2xs">

@@ -23,24 +23,6 @@ export type SchoolInfo = {
   phone?: string | null;
 } | null;
 
-const CATEGORY_COLORS: Record<string, { bg: string; text: string; bar: string }> = {
-  utilities: { bg: "bg-sky-100", text: "text-sky-800", bar: "bg-sky-500" },
-  transport: { bg: "bg-amber-100", text: "text-amber-800", bar: "bg-amber-500" },
-  supplies: { bg: "bg-emerald-100", text: "text-emerald-800", bar: "bg-emerald-500" },
-  maintenance: { bg: "bg-purple-100", text: "text-purple-800", bar: "bg-purple-500" },
-  stationery: { bg: "bg-indigo-100", text: "text-indigo-800", bar: "bg-indigo-500" },
-  salary: { bg: "bg-rose-100", text: "text-rose-800", bar: "bg-rose-500" },
-  other: { bg: "bg-slate-100", text: "text-slate-800", bar: "bg-slate-500" },
-};
-
-function getCategoryColor(cat: string | null | undefined) {
-  const k = String(cat || "other").toLowerCase();
-  for (const key of Object.keys(CATEGORY_COLORS)) {
-    if (k.includes(key)) return CATEGORY_COLORS[key];
-  }
-  return CATEGORY_COLORS.other;
-}
-
 export function ExpensesHubClient({
   period,
   expenses,
@@ -71,33 +53,6 @@ export function ExpensesHubClient({
     );
   }, [expenses, searchQuery]);
 
-  // Analytics & category distribution
-  const analytics = useMemo(() => {
-    const map = new Map<string, { total: number; count: number }>();
-    for (const e of expenses) {
-      const cat = (e.category || "General").trim();
-      const existing = map.get(cat) || { total: 0, count: 0 };
-      existing.total += Number(e.amount || 0);
-      existing.count += 1;
-      map.set(cat, existing);
-    }
-
-    const items = Array.from(map.entries()).map(([category, val]) => ({
-      category,
-      total: val.total,
-      count: val.count,
-      pct: totalAmount > 0 ? Math.round((val.total / totalAmount) * 100) : 0,
-    }));
-
-    // Sort by highest amount
-    items.sort((a, b) => b.total - a.total);
-
-    const topCategory = items[0] || null;
-    const avgExpense = expenses.length > 0 ? Math.round(totalAmount / expenses.length) : 0;
-
-    return { items, topCategory, avgExpense };
-  }, [expenses, totalAmount]);
-
   const schoolTitle = getSchoolDisplayName(school?.name);
   const schoolAddress = getSchoolDisplayAddress(school?.address);
 
@@ -124,11 +79,56 @@ export function ExpensesHubClient({
         </div>
       </div>
 
-      {/* Page Header (Screen) - extra description text removed as requested */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between print:hidden">
+      {/* Page Header (Screen) with Month & Year Search Form */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
         <div>
           <h1 className="text-2xl font-black text-brand-navy">Other Expenses</h1>
         </div>
+
+        {/* Top Month and Year Search Selector */}
+        <form method="get" className="flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-3 py-1.5 shadow-2xs">
+          <div className="flex items-center gap-1.5 text-xs">
+            <svg className="h-3.5 w-3.5 text-slate-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+            <span className="font-bold text-slate-500">Month:</span>
+            <select
+              name="month"
+              defaultValue={period.month}
+              className="bg-transparent font-bold text-brand-navy outline-none cursor-pointer"
+            >
+              {MONTHS.map((m, idx) => (
+                <option key={m} value={idx + 1}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <span className="text-slate-300">·</span>
+
+          <div className="flex items-center gap-1 text-xs">
+            <span className="font-bold text-slate-500">Year:</span>
+            <input
+              name="year"
+              type="number"
+              min={2020}
+              max={2035}
+              defaultValue={period.year}
+              className="w-14 bg-transparent font-bold text-brand-navy outline-none"
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="rounded-lg bg-brand-navy px-3 py-1 text-xs font-bold text-white transition hover:bg-brand-accent cursor-pointer shadow-2xs"
+          >
+            Show
+          </button>
+        </form>
       </div>
 
       {/* 2 Quick Links: 1. Add other expenses & 2. View other expenses (Clean, NO extra text) */}
@@ -370,7 +370,7 @@ export function ExpensesHubClient({
         </section>
       )}
 
-      {/* Graphical Representation & Analytics Section (Shown on Screen) */}
+      {/* Analytics Section (Shown on Screen) */}
       <section className="space-y-4 print:hidden">
         {/* Section Header */}
         <div className="flex items-center justify-between">
@@ -381,7 +381,7 @@ export function ExpensesHubClient({
               </svg>
             </span>
             <h2 className="text-sm font-bold text-[#0b1f3a]">
-              Expenses Analytics &amp; Visual Breakdown
+              Analytics
             </h2>
           </div>
           <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
@@ -389,108 +389,23 @@ export function ExpensesHubClient({
           </span>
         </div>
 
-        {/* 4 Summary Stat Tiles */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50/70 via-white to-pink-50/30 p-4 shadow-2xs">
+        {/* 2 Summary Stat Tiles (Total Outflow & Transactions) */}
+        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+          <div className="rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50/70 via-white to-pink-50/30 p-4 sm:p-5 shadow-2xs">
             <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700">Total Outflow</span>
-            <p className="mt-1 text-xl sm:text-2xl font-black text-rose-900 tabular-nums">
+            <p className="mt-1 text-2xl sm:text-3xl font-black text-rose-900 tabular-nums">
               {pkr(totalAmount)}
             </p>
-            <span className="text-[11px] text-slate-500">For {period.label}</span>
+            <span className="text-xs text-slate-500">For {period.label}</span>
           </div>
 
-          <div className="rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50/70 via-white to-blue-50/30 p-4 shadow-2xs">
+          <div className="rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50/70 via-white to-blue-50/30 p-4 sm:p-5 shadow-2xs">
             <span className="text-[11px] font-bold uppercase tracking-wider text-sky-700">Transactions</span>
-            <p className="mt-1 text-xl sm:text-2xl font-black text-sky-900 tabular-nums">
+            <p className="mt-1 text-2xl sm:text-3xl font-black text-sky-900 tabular-nums">
               {expenses.length}
             </p>
-            <span className="text-[11px] text-slate-500">Recorded vouchers</span>
+            <span className="text-xs text-slate-500">Recorded vouchers</span>
           </div>
-
-          <div className="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50/70 via-white to-yellow-50/30 p-4 shadow-2xs">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700">Top Category</span>
-            <p className="mt-1 text-base sm:text-lg font-black text-amber-900 truncate">
-              {analytics.topCategory ? analytics.topCategory.category : "None"}
-            </p>
-            <span className="text-[11px] text-slate-500">
-              {analytics.topCategory ? pkr(analytics.topCategory.total) : "—"}
-            </span>
-          </div>
-
-          <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/70 via-white to-purple-50/30 p-4 shadow-2xs">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-700">Average Outflow</span>
-            <p className="mt-1 text-xl sm:text-2xl font-black text-indigo-900 tabular-nums">
-              {pkr(analytics.avgExpense)}
-            </p>
-            <span className="text-[11px] text-slate-500">Per transaction</span>
-          </div>
-        </div>
-
-        {/* Visual Category Distribution Bar & Legend */}
-        <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Category Distribution Share
-            </h3>
-            {analytics.items.length > 0 && (
-              <span className="text-xs font-semibold text-slate-600">
-                {analytics.items.length} active spending categor{analytics.items.length > 1 ? "ies" : "y"}
-              </span>
-            )}
-          </div>
-
-          {analytics.items.length === 0 ? (
-            <div className="py-8 text-center text-xs text-slate-400">
-              <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400">
-                📊
-              </div>
-              <p className="font-semibold text-slate-500">No expense distribution data available.</p>
-              <p className="text-[11px] mt-0.5">Add an operational expense above to populate the visual chart.</p>
-            </div>
-          ) : (
-            <div className="mt-4 space-y-4">
-              {/* Multi-segment distribution progress bar */}
-              <div className="flex h-4 w-full overflow-hidden rounded-full bg-slate-100 p-0.5">
-                {analytics.items.map((item) => {
-                  const color = getCategoryColor(item.category);
-                  return (
-                    <div
-                      key={item.category}
-                      style={{ width: `${Math.max(item.pct, 3)}%` }}
-                      className={`h-full first:rounded-l-full last:rounded-r-full transition-all duration-500 ${color.bar}`}
-                      title={`${item.category}: ${pkr(item.total)} (${item.pct}%)`}
-                    />
-                  );
-                })}
-              </div>
-
-              {/* Category details breakdown cards */}
-              <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 pt-1">
-                {analytics.items.map((item) => {
-                  const color = getCategoryColor(item.category);
-                  return (
-                    <div
-                      key={item.category}
-                      className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/60 p-3 hover:bg-white hover:border-slate-200 transition"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className={`h-3 w-3 shrink-0 rounded-full ${color.bar}`} />
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-slate-800 truncate capitalize">{item.category}</p>
-                          <p className="text-[10px] text-slate-400">
-                            {item.count} record{item.count !== 1 ? "s" : ""} · {item.pct}% of total
-                          </p>
-                        </div>
-                      </div>
-                      <span className="text-xs font-black tabular-nums text-slate-900 shrink-0 ml-2">
-                        {pkr(item.total)}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </div>
       </section>
     </div>
