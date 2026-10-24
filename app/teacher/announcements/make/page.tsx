@@ -3,7 +3,17 @@ import { getContext } from "@/lib/session";
 import { redirect } from "next/navigation";
 
 export default async function TeacherMakeAnnouncementPage() {
-  const { profile, schoolId } = await getContext();
+  const { supabase, profile, schoolId } = await getContext();
   if (profile.role !== "teacher" || !schoolId) redirect("/");
-  return <StaffAnnouncementForm role="teacher" />;
+
+  const { data: teachers } = await supabase
+    .from("profiles")
+    .select("id, name")
+    .eq("school_id", schoolId)
+    .eq("role", "teacher")
+    .eq("is_active", true)
+    .neq("id", profile.id)
+    .order("name");
+
+  return <StaffAnnouncementForm role="teacher" teachers={teachers || []} />;
 }

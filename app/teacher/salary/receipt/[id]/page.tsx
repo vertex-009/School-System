@@ -27,12 +27,12 @@ export default async function TeacherSalaryReceiptPage({ params }: { params: Pro
   return (
     <div className="mx-auto max-w-md bg-white p-8 text-slate-900 print:max-w-none print:p-6">
       <div className="border-b-2 border-slate-900 pb-4 text-center">
-        <h1 className="text-2xl font-black tracking-tight">{school?.name || "School"}</h1>
-        {(school?.address || school?.phone) && (
-          <p className="mt-1 text-xs text-slate-500">
-            {[school?.address, school?.phone].filter(Boolean).join(" · ")}
-          </p>
-        )}
+        <h1 className="text-2xl font-black uppercase tracking-tight text-brand-navy">
+          City Public School
+        </h1>
+        <p className="mt-0.5 text-xs font-semibold text-slate-600">
+          Abbottabad, KPK, Pakistan
+        </p>
         <p className="mt-3 text-sm font-bold uppercase tracking-widest text-slate-700">Salary receipt</p>
       </div>
 
@@ -69,9 +69,10 @@ export default async function TeacherSalaryReceiptPage({ params }: { params: Pro
         </div>
       </dl>
 
-      <p className="mt-8 text-center text-[10px] text-slate-400">
-        Printed {new Date().toLocaleString()} · Keep this receipt for your records
-      </p>
+      <div className="mt-8 border-t border-slate-300 pt-4 text-center text-xs text-slate-600">
+        <p className="font-bold text-slate-900">Printed from: Teacher Portal ({profile.name})</p>
+        <p className="text-[11px] text-slate-500 mt-0.5">City Public School Abbottabad KPK Pakistan · Personal Salary Voucher</p>
+      </div>
 
       <PrintButton />
     </div>

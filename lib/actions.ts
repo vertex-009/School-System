@@ -65,7 +65,7 @@ export async function requestReset(formData: FormData) {
 export async function updatePassword(formData: FormData) {
   const supabase = await createClient();
   const password = String(formData.get("password") || "");
-  if (password.length < 8) return { error: "Password must be at least 8 characters" };
+  if (!password.trim()) return { error: "Password is required" };
   const { error } = await supabase.auth.updateUser({ password });
   if (error) return { error: error.message };
   redirect("/");
@@ -74,7 +74,39 @@ export async function updateProfile(formData: FormData) {
   const { supabase, profile, schoolActive } = await getContext();
   const name = String(formData.get("name") || "").trim();
   const phone = String(formData.get("phone") || "").trim();
+  const email = String(formData.get("email") || "").trim().toLowerCase();
+  const password = String(formData.get("password") || "").trim();
+  const confirm = String(formData.get("confirm") || "").trim();
+
   if (name.length < 3) return { error: "Name must be at least 3 characters" };
+
+  if (password || confirm) {
+    if (!password) return { error: "New password is required" };
+    if (password !== confirm) return { error: "Passwords do not match" };
+  }
+
+  // Handle email and password updates via Supabase Auth
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const authUpdates: { email?: string; password?: string } = {};
+  if (email && user && email !== user.email?.toLowerCase()) {
+    if (!email.includes("@")) return { error: "Valid email address is required" };
+    authUpdates.email = email;
+  }
+  if (password) {
+    authUpdates.password = password;
+  }
+
+  let notice = "";
+  if (Object.keys(authUpdates).length > 0) {
+    const { error: authErr } = await supabase.auth.updateUser(authUpdates);
+    if (authErr) return { error: authErr.message };
+    if (authUpdates.email) {
+      notice = " (If email confirmation is required, check your new email inbox)";
+    }
+  }
 
   let photoUrl = profile.photo_url ?? null;
   const photo = formData.get("photo");
@@ -115,7 +147,7 @@ export async function updateProfile(formData: FormData) {
     school_active: schoolActive,
   });
   revalidatePath("/profile");
-  return { ok: true };
+  return { ok: true, message: `Profile updated successfully.${notice}` };
 }
 
 /** Change password while logged in (all roles). */
@@ -124,7 +156,7 @@ export async function changeLoggedInPassword(_prev: unknown, formData: FormData)
     await getContext();
     const password = String(formData.get("password") || "");
     const confirm = String(formData.get("confirm") || "");
-    if (password.length < 8) return { error: "Password must be at least 8 characters" };
+    if (!password.trim()) return { error: "Password is required" };
     if (password !== confirm) return { error: "Passwords do not match" };
     const supabase = await createClient();
     const { error } = await supabase.auth.updateUser({ password });
@@ -138,6 +170,13 @@ export async function changeLoggedInPassword(_prev: unknown, formData: FormData)
 async function principal() {
   const ctx = await getContext();
   if (ctx.readOnly || ctx.profile.role !== "principal" || !ctx.schoolId) throw new Error("Only the Principal can change this");
+  return ctx;
+}
+async function principalOrFinance() {
+  const ctx = await getContext();
+  if (ctx.readOnly || !["principal", "finance"].includes(ctx.profile.role) || !ctx.schoolId) {
+    throw new Error("Only Principal or Finance can change this");
+  }
   return ctx;
 }
 async function finance() {
@@ -168,23 +207,67 @@ export async function addSubject(formData: FormData) {
 }
 export async function createTeacher(formData: FormData) {
   const { requireCnic } = await import("@/lib/cnic");
+  const { checkCnicDuplicate } = await import("@/lib/cnic-check");
   const { requireJoinedOn } = await import("@/lib/period");
-  const { supabase, schoolId } = await principal();
+  const { supabase, schoolId } = await principalOrFinance();
   const password = String(formData.get("password") || "");
   const email = String(formData.get("email") || "").trim().toLowerCase();
   const name = String(formData.get("name") || "").trim();
+
+  if (!name || name.length < 3) {
+    return { ok: false, error: "Teacher name must be at least 3 characters", field: "name" };
+  }
+  if (!email || !email.includes("@")) {
+    return { ok: false, error: "Valid email address is required (e.g. name@gmail.com)", field: "email" };
+  }
+  if (!password.trim()) {
+    return { ok: false, error: "Password is required", field: "password" };
+  }
+
   const cnicCheck = requireCnic(String(formData.get("cnic") || ""));
-  if (!cnicCheck.ok) return { error: cnicCheck.error };
+  if (!cnicCheck.ok) return { ok: false, error: cnicCheck.error, field: "cnic" };
+
   const joinCheck = requireJoinedOn(formData.get("joined_on"));
-  if (!joinCheck.ok) return { error: joinCheck.error };
-  const { error } = await supabase.rpc("create_teacher", {
+  if (!joinCheck.ok) return { ok: false, error: joinCheck.error, field: "joined_on" };
+
+  // Pre-check duplicate CNIC across school records
+  const dupCnic = await checkCnicDuplicate(supabase, schoolId, cnicCheck.cnic);
+  if (dupCnic.isDuplicate) {
+    return { ok: false, error: dupCnic.message || "This CNIC is already registered in the system.", field: "cnic" };
+  }
+
+  let rpcErr: { message: string } | null = null;
+  const res1 = await supabase.rpc("create_teacher", {
     p_name: name,
     p_email: email,
     p_password: password,
     p_phone: String(formData.get("phone") || ""),
     p_cnic: cnicCheck.cnic,
   });
-  if (error) return { error: error.message };
+  if (res1.error) {
+    const errText = res1.error.message.toLowerCase();
+    if (errText.includes("p_cnic") || errText.includes("schema cache") || errText.includes("does not exist")) {
+      const res2 = await supabase.rpc("create_teacher", {
+        p_name: name,
+        p_email: email,
+        p_password: password,
+        p_phone: String(formData.get("phone") || ""),
+      });
+      if (res2.error) rpcErr = res2.error;
+    } else {
+      rpcErr = res1.error;
+    }
+  }
+  if (rpcErr) {
+    const msg = rpcErr.message.toLowerCase();
+    if (msg.includes("email already registered") || (msg.includes("email") && msg.includes("already"))) {
+      return { ok: false, error: `Email '${email}' is already registered. Please use another email.`, field: "email" };
+    }
+    if (msg.includes("cnic")) {
+      return { ok: false, error: rpcErr.message, field: "cnic" };
+    }
+    return { ok: false, error: rpcErr.message };
+  }
   // Set join date (requires migration_joined_on.sql)
   const { data: row } = await supabase
     .from("profiles")
@@ -196,23 +279,58 @@ export async function createTeacher(formData: FormData) {
     .limit(1)
     .maybeSingle();
   if (row?.id) {
-    const { error: jErr } = await supabase
+    let photoUrl: string | null = null;
+    const photo = formData.get("photo");
+    if (photo instanceof File && photo.size > 0 && photo.type.startsWith("image/")) {
+      const ext = photo.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+      const path = `${row.id}/id_card_${Date.now()}.${ext === "jpeg" ? "jpg" : ext}`;
+      const { error: upErr } = await supabase.storage.from("avatars").upload(path, photo, {
+        upsert: true,
+        contentType: photo.type,
+        cacheControl: "3600",
+      });
+      if (!upErr) {
+        const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
+        photoUrl = `${pub.publicUrl}?v=${Date.now()}`;
+      } else if (photo.size <= 500 * 1024) {
+        const buf = Buffer.from(await photo.arrayBuffer());
+        photoUrl = `data:${photo.type};base64,${buf.toString("base64")}`;
+      }
+    }
+
+    const updatePayload: Record<string, unknown> = {
+      joined_on: joinCheck.joined_on,
+      left_on: null,
+      cnic: cnicCheck.cnic,
+      email: email,
+    };
+    if (photoUrl) updatePayload.photo_url = photoUrl;
+
+    let { error: jErr } = await supabase
       .from("profiles")
-      .update({ joined_on: joinCheck.joined_on, left_on: null })
+      .update(updatePayload)
       .eq("id", row.id);
+    if (jErr && (jErr.message.toLowerCase().includes("cnic") || jErr.message.toLowerCase().includes("email"))) {
+      delete updatePayload.cnic;
+      delete updatePayload.email;
+      const retry = await supabase.from("profiles").update(updatePayload).eq("id", row.id);
+      jErr = retry.error;
+    }
     if (jErr && jErr.message.toLowerCase().includes("joined_on")) {
       return { error: "Run supabase/migration_joined_on.sql in Supabase, then try again." };
     }
   }
   revalidatePath("/principal/teachers");
   revalidatePath("/principal/teachers/new");
+  revalidatePath("/finance/teachers");
+  revalidatePath("/finance/teachers/new");
   revalidatePath("/finance/salaries");
   revalidatePath("/finance/salaries/pay");
   revalidatePath("/finance/salaries/status");
   return { ok: true, email, password, name };
 }
 export async function setTeacherActive(teacherId: string, active: boolean) {
-  const { supabase } = await principal();
+  const { supabase } = await principalOrFinance();
   fail((await supabase.rpc("set_teacher_active", { p_teacher_id: teacherId, p_active: active })).error);
   const today = new Date().toISOString().slice(0, 10);
   await supabase
@@ -221,24 +339,48 @@ export async function setTeacherActive(teacherId: string, active: boolean) {
     .eq("id", teacherId);
   revalidatePath("/principal/teachers");
   revalidatePath(`/principal/teachers/${teacherId}`);
+  revalidatePath("/finance/teachers");
+  revalidatePath(`/finance/teachers/${teacherId}`);
+  revalidatePath("/finance/salaries");
   revalidatePath("/finance/salaries/pay");
   revalidatePath("/finance/salaries/status");
 }
 /** Principal adds Finance for their own school. */
 export async function createSchoolStaff(formData: FormData) {
   const { requireCnic } = await import("@/lib/cnic");
+  const { checkCnicDuplicate } = await import("@/lib/cnic-check");
   const { requireJoinedOn } = await import("@/lib/period");
   const { supabase, schoolId } = await principal();
   const role = String(formData.get("role") || "");
-  if (role !== "finance") return { error: "Role must be finance" };
+  if (role !== "finance") return { ok: false, error: "Role must be finance", field: "role" };
   const password = String(formData.get("password") || "");
   const email = String(formData.get("email") || "").trim().toLowerCase();
   const name = String(formData.get("name") || "").trim();
+
+  if (!name || name.length < 3) {
+    return { ok: false, error: "Staff name must be at least 3 characters", field: "name" };
+  }
+  if (!email || !email.includes("@")) {
+    return { ok: false, error: "Valid email address is required (e.g. name@gmail.com)", field: "email" };
+  }
+  if (!password.trim()) {
+    return { ok: false, error: "Password is required", field: "password" };
+  }
+
   const cnicCheck = requireCnic(String(formData.get("cnic") || ""));
-  if (!cnicCheck.ok) return { error: cnicCheck.error };
+  if (!cnicCheck.ok) return { ok: false, error: cnicCheck.error, field: "cnic" };
+
   const joinCheck = requireJoinedOn(formData.get("joined_on"));
-  if (!joinCheck.ok) return { error: joinCheck.error };
-  const { error } = await supabase.rpc("create_school_staff", {
+  if (!joinCheck.ok) return { ok: false, error: joinCheck.error, field: "joined_on" };
+
+  // Pre-check duplicate CNIC across school records
+  const dupCnic = await checkCnicDuplicate(supabase, schoolId, cnicCheck.cnic);
+  if (dupCnic.isDuplicate) {
+    return { ok: false, error: dupCnic.message || "This CNIC is already registered in the system.", field: "cnic" };
+  }
+
+  let rpcErr: { message: string } | null = null;
+  const res1 = await supabase.rpc("create_school_staff", {
     p_name: name,
     p_email: email,
     p_password: password,
@@ -246,7 +388,31 @@ export async function createSchoolStaff(formData: FormData) {
     p_role: role,
     p_cnic: cnicCheck.cnic,
   });
-  if (error) return { error: error.message };
+  if (res1.error) {
+    const errText = res1.error.message.toLowerCase();
+    if (errText.includes("p_cnic") || errText.includes("schema cache") || errText.includes("does not exist")) {
+      const res2 = await supabase.rpc("create_school_staff", {
+        p_name: name,
+        p_email: email,
+        p_password: password,
+        p_phone: String(formData.get("phone") || ""),
+        p_role: role,
+      });
+      if (res2.error) rpcErr = res2.error;
+    } else {
+      rpcErr = res1.error;
+    }
+  }
+  if (rpcErr) {
+    const msg = rpcErr.message.toLowerCase();
+    if (msg.includes("email already registered") || (msg.includes("email") && msg.includes("already"))) {
+      return { ok: false, error: `Email '${email}' is already registered. Please use another email.`, field: "email" };
+    }
+    if (msg.includes("cnic")) {
+      return { ok: false, error: rpcErr.message, field: "cnic" };
+    }
+    return { ok: false, error: rpcErr.message };
+  }
   const { data: row } = await supabase
     .from("profiles")
     .select("id")
@@ -257,10 +423,43 @@ export async function createSchoolStaff(formData: FormData) {
     .limit(1)
     .maybeSingle();
   if (row?.id) {
-    const { error: jErr } = await supabase
+    let photoUrl: string | null = null;
+    const photo = formData.get("photo");
+    if (photo instanceof File && photo.size > 0 && photo.type.startsWith("image/")) {
+      const ext = photo.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+      const path = `${row.id}/id_card_${Date.now()}.${ext === "jpeg" ? "jpg" : ext}`;
+      const { error: upErr } = await supabase.storage.from("avatars").upload(path, photo, {
+        upsert: true,
+        contentType: photo.type,
+        cacheControl: "3600",
+      });
+      if (!upErr) {
+        const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
+        photoUrl = `${pub.publicUrl}?v=${Date.now()}`;
+      } else if (photo.size <= 500 * 1024) {
+        const buf = Buffer.from(await photo.arrayBuffer());
+        photoUrl = `data:${photo.type};base64,${buf.toString("base64")}`;
+      }
+    }
+
+    const updatePayload: Record<string, unknown> = {
+      joined_on: joinCheck.joined_on,
+      left_on: null,
+      cnic: cnicCheck.cnic,
+      email: email,
+    };
+    if (photoUrl) updatePayload.photo_url = photoUrl;
+
+    let { error: jErr } = await supabase
       .from("profiles")
-      .update({ joined_on: joinCheck.joined_on, left_on: null })
+      .update(updatePayload)
       .eq("id", row.id);
+    if (jErr && (jErr.message.toLowerCase().includes("cnic") || jErr.message.toLowerCase().includes("email"))) {
+      delete updatePayload.cnic;
+      delete updatePayload.email;
+      const retry = await supabase.from("profiles").update(updatePayload).eq("id", row.id);
+      jErr = retry.error;
+    }
     if (jErr && jErr.message.toLowerCase().includes("joined_on")) {
       return { error: "Run supabase/migration_joined_on.sql in Supabase, then try again." };
     }
@@ -288,14 +487,21 @@ export async function setStaffActive(staffId: string, active: boolean) {
 /** Principal edits finance or teacher profile fields (not password). Requires migration_principal_ui.sql. */
 export async function updateStaffProfile(formData: FormData) {
   const { requireCnic } = await import("@/lib/cnic");
+  const { checkCnicDuplicate } = await import("@/lib/cnic-check");
   const { supabase, schoolId } = await principal();
   const id = String(formData.get("id") || "");
   const name = String(formData.get("name") || "").trim();
   const phone = String(formData.get("phone") || "").trim();
-  if (!id) return { error: "Missing staff id" };
-  if (name.length < 3) return { error: "Name must be at least 3 characters" };
+  if (!id) return { ok: false, error: "Missing staff id" };
+  if (name.length < 3) return { ok: false, error: "Name must be at least 3 characters", field: "name" };
   const cnicCheck = requireCnic(String(formData.get("cnic") || ""));
-  if (!cnicCheck.ok) return { error: cnicCheck.error };
+  if (!cnicCheck.ok) return { ok: false, error: cnicCheck.error, field: "cnic" };
+
+  // Check duplicate CNIC (excluding current profile)
+  const dupCnic = await checkCnicDuplicate(supabase, schoolId, cnicCheck.cnic, { excludeProfileId: id });
+  if (dupCnic.isDuplicate) {
+    return { ok: false, error: dupCnic.message || "This CNIC is already registered.", field: "cnic" };
+  }
 
   const { data: row } = await supabase
     .from("profiles")
@@ -303,14 +509,20 @@ export async function updateStaffProfile(formData: FormData) {
     .eq("id", id)
     .eq("school_id", schoolId)
     .maybeSingle();
-  if (!row || (row.role !== "finance" && row.role !== "teacher")) return { error: "Staff not found" };
+  if (!row || (row.role !== "finance" && row.role !== "teacher")) return { ok: false, error: "Staff not found" };
 
   const { error } = await supabase
     .from("profiles")
     .update({ name, phone: phone || null, cnic: cnicCheck.cnic })
     .eq("id", id)
     .eq("school_id", schoolId);
-  if (error) return { error: error.message };
+  if (error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes("cnic") || msg.includes("profiles_school_cnic_uidx")) {
+      return { ok: false, error: "This CNIC is already registered in the system.", field: "cnic" };
+    }
+    return { ok: false, error: error.message };
+  }
 
   revalidatePath("/principal/staff");
   revalidatePath(`/principal/staff/${id}`);
@@ -319,62 +531,239 @@ export async function updateStaffProfile(formData: FormData) {
   return { ok: true };
 }
 export async function assignTeacher(formData: FormData) {
-  const { supabase, schoolId } = await principal();
-  fail(
-    (
-      await supabase.from("teacher_assignments").insert({
-        school_id: schoolId,
-        teacher_id: String(formData.get("teacher_id")),
-        section_id: String(formData.get("section_id")),
-        subject_id: String(formData.get("subject_id")),
-      })
-    ).error
-  );
+  const { supabase, schoolId } = await principalOrFinance();
+  const teacherId = String(formData.get("teacher_id") || "").trim();
+  if (!teacherId) return { ok: false, error: "Teacher is required" };
+
+  // Collect section IDs (support single section_id or multiple section_ids)
+  let sectionIds = formData.getAll("section_ids").map(String).filter(Boolean);
+  const singleSec = String(formData.get("section_id") || "").trim();
+  if (singleSec && !sectionIds.includes(singleSec)) {
+    sectionIds.push(singleSec);
+  }
+  if (!sectionIds.length) {
+    return { ok: false, error: "Please select at least one class" };
+  }
+
+  // Handle subject: check if custom subject text is given
+  const customSubject = String(formData.get("custom_subject") || "").trim();
+  let subjectId = String(formData.get("subject_id") || "").trim();
+
+  if (customSubject) {
+    // Check if custom subject already exists for this school
+    const { data: existingSub } = await supabase
+      .from("subjects")
+      .select("id")
+      .eq("school_id", schoolId)
+      .ilike("name", customSubject)
+      .maybeSingle();
+
+    if (existingSub?.id) {
+      subjectId = existingSub.id;
+    } else {
+      const { data: newSub, error: subErr } = await supabase
+        .from("subjects")
+        .insert({ school_id: schoolId, name: customSubject })
+        .select("id")
+        .single();
+      if (subErr) {
+        // Fallback in case of duplicate/race condition
+        const { data: fb } = await supabase
+          .from("subjects")
+          .select("id")
+          .eq("school_id", schoolId)
+          .ilike("name", customSubject)
+          .maybeSingle();
+        subjectId = fb?.id || "";
+      } else {
+        subjectId = newSub.id;
+      }
+    }
+  }
+
+  if (!subjectId) {
+    return { ok: false, error: "Please select or type a subject" };
+  }
+
+  // Insert assignments for all selected sections
+  const rows = sectionIds.map((secId) => ({
+    school_id: schoolId,
+    teacher_id: teacherId,
+    section_id: secId,
+    subject_id: subjectId,
+  }));
+
+  const { error: insErr } = await supabase
+    .from("teacher_assignments")
+    .upsert(rows, { onConflict: "teacher_id,section_id,subject_id", ignoreDuplicates: true });
+
+  if (insErr) {
+    return { ok: false, error: insErr.message };
+  }
+
   revalidatePath("/principal/assign");
+  revalidatePath("/principal/assign/view");
   revalidatePath("/principal/assign/history");
+  revalidatePath("/finance/assign");
+  revalidatePath("/finance/assign/view");
+  revalidatePath("/teacher/classes");
+  revalidatePath("/teacher");
+  return { ok: true, count: rows.length };
 }
 export async function removeAssignment(id: string) {
-  const { supabase } = await principal();
+  const { supabase } = await principalOrFinance();
   fail((await supabase.from("teacher_assignments").delete().eq("id", id)).error);
   revalidatePath("/principal/assign");
+  revalidatePath("/principal/assign/view");
   revalidatePath("/principal/assign/history");
+  revalidatePath("/finance/assign");
+  revalidatePath("/finance/assign/view");
+  revalidatePath("/teacher/classes");
+  revalidatePath("/teacher");
 }
 export async function saveStudent(formData: FormData) {
   const { requireCnic } = await import("@/lib/cnic");
+  const { checkCnicDuplicate } = await import("@/lib/cnic-check");
   const { primarySectionIdByClass } = await import("@/lib/class-label");
-  const { supabase, schoolId } = await finance();
+  const ctx = await getContext();
+  if (!ctx.schoolId || ctx.readOnly) return { ok: false, error: "Not allowed" };
+  if (!["finance", "principal"].includes(ctx.profile.role)) return { ok: false, error: "Not allowed" };
+  const { supabase, schoolId } = { supabase: ctx.supabase, schoolId: ctx.schoolId };
   const id = String(formData.get("id") || "");
+  const name = String(formData.get("name") || "").trim();
+  const admission_no = String(formData.get("admission_no") || "").trim();
+
+  if (!name) return { ok: false, error: "Student name is required", field: "name" };
+  if (!admission_no) return { ok: false, error: "Admission number is required", field: "admission_no" };
+
   const cnicCheck = requireCnic(String(formData.get("cnic") || ""));
-  if (!cnicCheck.ok) throw new Error(cnicCheck.error);
+  if (!cnicCheck.ok) return { ok: false, error: cnicCheck.error, field: "cnic" };
+
+  // Check duplicate CNIC across school records
+  const dupCnic = await checkCnicDuplicate(supabase, schoolId, cnicCheck.cnic, {
+    excludeStudentId: id || undefined,
+  });
+  if (dupCnic.isDuplicate) {
+    return { ok: false, error: dupCnic.message || "This CNIC is already registered in the system.", field: "cnic" };
+  }
 
   // Prefer class_id (UI); fall back to section_id for older forms.
   let sectionId = String(formData.get("section_id") || "").trim() || null;
   const classId = String(formData.get("class_id") || "").trim();
   if (classId) {
-    const { data: secs } = await supabase.from("sections").select("id, class_id, name").eq("school_id", schoolId).eq("class_id", classId);
-    sectionId = primarySectionIdByClass(secs || []).get(classId) || null;
-    if (!sectionId) throw new Error("Selected class has no roster unit. Re-add the class.");
+    const { data: secs } = await supabase
+      .from("sections")
+      .select("id, class_id, name")
+      .eq("school_id", schoolId)
+      .eq("class_id", classId);
+
+    sectionId = (secs && secs.length > 0)
+      ? (primarySectionIdByClass(secs).get(classId) || secs[0].id)
+      : null;
+
+    if (!sectionId) {
+      // Auto-create a default section for this class if missing so enrollment never fails
+      const { data: newSec } = await supabase
+        .from("sections")
+        .insert({
+          school_id: schoolId,
+          class_id: classId,
+          name: "-",
+        })
+        .select("id")
+        .maybeSingle();
+
+      if (newSec?.id) {
+        sectionId = newSec.id;
+      }
+    }
   }
 
-  const payload = {
-    school_id: schoolId, name: String(formData.get("name") || "").trim(),
+  if (!sectionId) {
+    const { data: anySec } = await supabase
+      .from("sections")
+      .select("id")
+      .eq("school_id", schoolId)
+      .limit(1)
+      .maybeSingle();
+    sectionId = anySec?.id || null;
+  }
+
+  if (!sectionId) return { ok: false, error: "Class is required. Please ensure classes are configured.", field: "class_id" };
+
+  const admission_fee_raw = formData.get("admission_fee");
+  const monthly_fee_raw = formData.get("monthly_fee");
+  const transport_fee_raw = formData.get("transport_fee");
+  const misc_fee_raw = formData.get("misc_fee");
+  const discount_raw = formData.get("discount");
+
+  const admission_fee = admission_fee_raw != null && admission_fee_raw !== "" ? Number(admission_fee_raw) : 0;
+  const monthly_fee = monthly_fee_raw != null && monthly_fee_raw !== "" ? Number(monthly_fee_raw) : 0;
+  const transport_fee = transport_fee_raw != null && transport_fee_raw !== "" ? Number(transport_fee_raw) : 0;
+  const misc_fee = misc_fee_raw != null && misc_fee_raw !== "" ? Number(misc_fee_raw) : 0;
+  const discount = discount_raw != null && discount_raw !== "" ? Number(discount_raw) : 0;
+
+  const payload: Record<string, unknown> = {
+    school_id: schoolId,
+    name,
     father_name: String(formData.get("father_name") || "").trim() || null,
     guardian_phone: String(formData.get("guardian_phone") || "").trim() || null,
     gender: String(formData.get("gender") || "").trim() || null,
     dob: String(formData.get("dob") || "") || null,
     address: String(formData.get("address") || "").trim() || null,
-    admission_no: String(formData.get("admission_no") || "").trim(),
+    admission_no,
     roll_no: formData.get("roll_no") ? Number(formData.get("roll_no")) : null,
     section_id: sectionId,
     status: String(formData.get("status") || "active"),
     cnic: cnicCheck.cnic,
+    admission_fee: isNaN(admission_fee) ? 0 : Math.max(0, admission_fee),
+    monthly_fee: isNaN(monthly_fee) ? 0 : Math.max(0, monthly_fee),
+    transport_fee: isNaN(transport_fee) ? 0 : Math.max(0, transport_fee),
+    misc_fee: isNaN(misc_fee) ? 0 : Math.max(0, misc_fee),
+    discount: isNaN(discount) ? 0 : Math.max(0, discount),
   };
-  if (!payload.name || !payload.admission_no) throw new Error("Name and admission number are required");
-  if (!payload.section_id) throw new Error("Class is required");
-  const { data: saved, error } = id
+
+  let { data: saved, error } = id
     ? await supabase.from("students").update(payload).eq("id", id).select("id").maybeSingle()
     : await supabase.from("students").insert(payload).select("id").maybeSingle();
-  if (error) throw new Error(error.message);
+
+  // If DB hasn't run the fee or discount column migration on students yet, retry without those keys
+  if (error && error.message.toLowerCase().includes("column") && (
+    error.message.toLowerCase().includes("fee") ||
+    error.message.toLowerCase().includes("discount")
+  )) {
+    delete payload.admission_fee;
+    delete payload.monthly_fee;
+    delete payload.transport_fee;
+    delete payload.misc_fee;
+    delete payload.discount;
+    const retry = id
+      ? await supabase.from("students").update(payload).eq("id", id).select("id").maybeSingle()
+      : await supabase.from("students").insert(payload).select("id").maybeSingle();
+    saved = retry.data;
+    error = retry.error;
+  }
+
+  // If DB hasn't run the CNIC column migration on students yet, retry without cnic
+  if (error && error.message.toLowerCase().includes("cnic") && error.message.toLowerCase().includes("column")) {
+    delete payload.cnic;
+    const retry = id
+      ? await supabase.from("students").update(payload).eq("id", id).select("id").maybeSingle()
+      : await supabase.from("students").insert(payload).select("id").maybeSingle();
+    saved = retry.data;
+    error = retry.error;
+  }
+
+  if (error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes("cnic") || msg.includes("students_school_cnic_uidx")) {
+      return { ok: false, error: "This CNIC is already registered for another student.", field: "cnic" };
+    }
+    if (msg.includes("admission_no") || msg.includes("unique")) {
+      return { ok: false, error: `Admission number '${admission_no}' is already in use.`, field: "admission_no" };
+    }
+    return { ok: false, error: error.message };
+  }
   // Invoices only via Dashboard → Generate invoices (RPC skips status=left).
 
   revalidatePath("/finance/students");
@@ -388,14 +777,16 @@ export async function saveStudent(formData: FormData) {
   if (studentId) {
     revalidatePath(`/finance/students/${studentId}`);
     revalidatePath(`/principal/students/${studentId}`);
-    redirect(`/finance/students/${studentId}`);
   }
-  redirect("/finance/students");
+  return { ok: true, studentId };
 }
 export async function setStudentStatus(id: string, status: "active" | "left") {
-  const { supabase } = await finance();
-  fail((await supabase.from("students").update({ status }).eq("id", id)).error);
+  const ctx = await getContext();
+  if (!ctx.schoolId || ctx.readOnly) return;
+  if (!["finance", "principal"].includes(ctx.profile.role)) return;
+  fail((await ctx.supabase.from("students").update({ status }).eq("id", id)).error);
   revalidatePath("/finance/students");
+  revalidatePath("/principal/students");
 }
 
 /** Move all active students from one class to another. Finance only. */
@@ -423,22 +814,32 @@ export async function transferClass(formData: FormData) {
   if (!fromSectionIds.length) return { error: "Source class has no roster unit" };
   if (!toSectionId) return { error: "Destination class has no roster unit. Ask Principal to re-add the class." };
 
-  const { data: students } = await supabase
+  const studentIds = formData.getAll("student_ids").map(String).filter(Boolean);
+
+  let studentQuery = supabase
     .from("students")
     .select("id, section_id")
     .eq("school_id", schoolId)
     .eq("status", "active")
     .in("section_id", fromSectionIds);
 
+  if (studentIds.length > 0) {
+    studentQuery = studentQuery.in("id", studentIds);
+  }
+
+  const { data: students } = await studentQuery;
+
   const list = students || [];
-  if (!list.length) return { error: "No active students in this class to transfer" };
+  if (!list.length) return { error: "No students selected to transfer" };
+
+  const targetIds = list.map((s) => s.id);
 
   const { error: upErr } = await supabase
     .from("students")
     .update({ section_id: toSectionId })
     .eq("school_id", schoolId)
     .eq("status", "active")
-    .in("section_id", fromSectionIds);
+    .in("id", targetIds);
   if (upErr) return { error: upErr.message };
 
   const logs = list.map((s) => ({
@@ -810,11 +1211,26 @@ async function stampPaymentMeta(
 
 export async function collectFee(formData: FormData) {
   const { supabase, profile } = await finance();
+  const invoiceId = String(formData.get("invoice_id") || "").trim();
+  const amountToCollect = Number(formData.get("amount"));
+  const discountVal = formData.get("discount");
+  const discount = discountVal !== null && String(discountVal).trim() !== "" ? Number(discountVal) : null;
+  const reason = String(formData.get("discount_reason") || "Discount applied at fee collection").trim();
+
+  // If discount was specified or changed, update the invoice discount first
+  if (discount !== null && !isNaN(discount) && discount >= 0) {
+    const { error: discErr } = await supabase
+      .from("fee_invoices")
+      .update({ discount, discount_reason: reason })
+      .eq("id", invoiceId);
+    if (discErr) return { error: discErr.message };
+  }
+
   const receivedFrom = String(formData.get("received_from") || "").trim();
   const receivedBy = profile.name?.trim() || "Finance";
   const { data, error } = await supabase.rpc("collect_fee", {
-    p_invoice_id: String(formData.get("invoice_id")),
-    p_amount: Number(formData.get("amount")),
+    p_invoice_id: invoiceId,
+    p_amount: amountToCollect,
     p_method: String(formData.get("method") || "cash"),
   });
   if (error) return { error: error.message };
@@ -935,16 +1351,90 @@ export async function removePayment(id: string) {
   revalidatePath("/finance/fees/receipts");
 }
 export async function saveSalary(teacherId: string, monthlySalary: number) {
-  const { supabase, schoolId } = await finance();
+  const ctx = await getContext();
+  if (!ctx.schoolId || ctx.readOnly) throw new Error("Not allowed");
+  if (!["finance", "principal"].includes(ctx.profile.role)) throw new Error("Not allowed");
+  const { supabase, schoolId } = { supabase: ctx.supabase, schoolId: ctx.schoolId! };
+
+  // Finance cannot set salary for finance staff
+  if (ctx.profile.role === "finance") {
+    const { data: target } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", teacherId)
+      .eq("school_id", schoolId)
+      .maybeSingle();
+    if (target?.role === "finance") {
+      throw new Error("Finance staff cannot set finance staff salary. Only Principal can set Finance salaries.");
+    }
+  }
+
   const { data: existing } = await supabase.from("teacher_salaries").select("id").eq("teacher_id", teacherId).maybeSingle();
   const { error } = existing
     ? await supabase.from("teacher_salaries").update({ monthly_salary: monthlySalary }).eq("id", existing.id)
     : await supabase.from("teacher_salaries").insert({ school_id: schoolId, teacher_id: teacherId, monthly_salary: monthlySalary });
   fail(error);
   revalidatePath("/finance/salaries");
+  revalidatePath("/principal/salaries");
+}
+
+export async function setStaffSalary(
+  staffId: string,
+  category: "teachers" | "finance" | "employees",
+  monthlySalary: number
+) {
+  const ctx = await getContext();
+  if (!ctx.schoolId || ctx.readOnly) return { ok: false, error: "Not allowed" };
+  if (!["finance", "principal"].includes(ctx.profile.role)) return { ok: false, error: "Not allowed" };
+  const { supabase, schoolId } = { supabase: ctx.supabase, schoolId: ctx.schoolId! };
+
+  if (Number.isNaN(monthlySalary) || monthlySalary < 0) {
+    return { ok: false, error: "Salary must be 0 or a positive number" };
+  }
+
+  if (category === "employees") {
+    const { error } = await supabase
+      .from("other_employees")
+      .update({ monthly_salary: monthlySalary })
+      .eq("id", staffId)
+      .eq("school_id", schoolId);
+    if (error) return { ok: false, error: error.message };
+  } else {
+    // teachers or finance
+    if (category === "finance" && ctx.profile.role !== "principal") {
+      return { ok: false, error: "Only Principal can set Finance staff salary." };
+    }
+    const { data: existing } = await supabase
+      .from("teacher_salaries")
+      .select("id")
+      .eq("teacher_id", staffId)
+      .eq("school_id", schoolId)
+      .maybeSingle();
+
+    const { error } = existing
+      ? await supabase
+          .from("teacher_salaries")
+          .update({ monthly_salary: monthlySalary })
+          .eq("id", existing.id)
+      : await supabase
+          .from("teacher_salaries")
+          .insert({ school_id: schoolId, teacher_id: staffId, monthly_salary: monthlySalary });
+    if (error) return { ok: false, error: error.message };
+  }
+
+  revalidatePath("/principal/salaries");
+  revalidatePath("/finance/salaries");
+  revalidatePath("/finance/employees");
+  revalidatePath("/principal/faculty");
+  revalidatePath("/principal/other-employees");
+  return { ok: true };
 }
 export async function paySalary(formData: FormData) {
-  const { supabase, schoolId } = await finance();
+  const ctx = await getContext();
+  if (!ctx.schoolId || ctx.readOnly) return { error: "Not allowed" };
+  if (!["finance", "principal"].includes(ctx.profile.role)) return { error: "Not allowed" };
+  const { supabase, schoolId } = { supabase: ctx.supabase, schoolId: ctx.schoolId! };
+
   const { parsePeriod } = await import("@/lib/period");
   const period = parsePeriod({ month: formData.get("month") as string, year: formData.get("year") as string });
   if (period.isFuture) {
@@ -955,12 +1445,20 @@ export async function paySalary(formData: FormData) {
 
   const { data: person } = await supabase
     .from("profiles")
-    .select("joined_on, left_on, is_active")
+    .select("role, joined_on, left_on, is_active")
     .eq("id", teacherId)
     .eq("school_id", schoolId)
     .maybeSingle();
+
+  if (!person) return { error: "Staff member not found" };
+
+  // STRICT RULE: Finance staff cannot pay Finance staff salary! Only Principal can.
+  if (person.role === "finance" && ctx.profile.role === "finance") {
+    return { error: "Finance staff cannot pay finance staff salary. Only the Principal can pay Finance salaries." };
+  }
+
   const { inEmploymentWindow } = await import("@/lib/period");
-  if (!person || !inEmploymentWindow(person.joined_on, person.left_on, period)) {
+  if (!inEmploymentWindow(person.joined_on, person.left_on, period)) {
     return { error: "No record found for this person in the selected month (before join or after leave)." };
   }
 
@@ -994,14 +1492,16 @@ export async function paySalary(formData: FormData) {
   }
   revalidatePath("/finance/salaries/pay");
   revalidatePath("/finance/salaries/status");
+  revalidatePath("/principal/salaries");
+  revalidatePath("/principal");
   return { ok: true, receipt: (data as { receipt_no?: string })?.receipt_no };
 }
 
 /** Salary-only staff (driver, peon, etc.) — no login. Finance or Principal may create; pay is Finance-only. */
 export async function saveOtherEmployee(formData: FormData) {
   const ctx = await getContext();
-  if (!ctx.schoolId || ctx.readOnly) return { error: "Not allowed" };
-  if (!["finance", "principal"].includes(ctx.profile.role)) return { error: "Not allowed" };
+  if (!ctx.schoolId || ctx.readOnly) return { ok: false, error: "Not allowed" };
+  if (!["finance", "principal"].includes(ctx.profile.role)) return { ok: false, error: "Not allowed" };
   const { supabase, schoolId } = { supabase: ctx.supabase, schoolId: ctx.schoolId! };
 
   const { requireJoinedOn } = await import("@/lib/period");
@@ -1009,26 +1509,36 @@ export async function saveOtherEmployee(formData: FormData) {
   const name = String(formData.get("name") || "").trim();
   const jobTitle = String(formData.get("job_title") || "").trim();
   const phone = String(formData.get("phone") || "").trim() || null;
+  const email = String(formData.get("email") || "").trim().toLowerCase() || null;
   const cnicRaw = String(formData.get("cnic") || "").trim();
   const monthlySalary = Number(formData.get("monthly_salary") || 0);
 
-  if (name.length < 2) return { error: "Name is required" };
-  if (!jobTitle) return { error: "Job title is required (e.g. Driver, Peon)" };
-  if (monthlySalary < 0) return { error: "Salary cannot be negative" };
+  if (name.length < 2) return { ok: false, error: "Name is required (at least 2 letters)", field: "name" };
+  if (!jobTitle) return { ok: false, error: "Job title is required (e.g. Driver, Peon)", field: "job_title" };
+  if (monthlySalary < 0) return { ok: false, error: "Salary cannot be negative", field: "monthly_salary" };
 
   let cnic: string | null = null;
   if (cnicRaw) {
     const { requireCnic } = await import("@/lib/cnic");
+    const { checkCnicDuplicate } = await import("@/lib/cnic-check");
     const check = requireCnic(cnicRaw);
-    if (!check.ok) return { error: check.error };
+    if (!check.ok) return { ok: false, error: check.error, field: "cnic" };
     cnic = check.cnic;
+
+    // Check duplicate CNIC (excluding this employee if updating)
+    const dupCnic = await checkCnicDuplicate(supabase, schoolId, cnic, {
+      excludeEmployeeId: id || undefined,
+    });
+    if (dupCnic.isDuplicate) {
+      return { ok: false, error: dupCnic.message || "This CNIC is already registered.", field: "cnic" };
+    }
   }
 
   const joinCheck = requireJoinedOn(formData.get("joined_on"));
   // On edit, keep existing joined_on if field omitted
   let joined_on: string | undefined;
   if (!id) {
-    if (!joinCheck.ok) return { error: joinCheck.error };
+    if (!joinCheck.ok) return { ok: false, error: joinCheck.error, field: "joined_on" };
     joined_on = joinCheck.joined_on;
   } else if (joinCheck.ok) {
     joined_on = joinCheck.joined_on;
@@ -1039,6 +1549,7 @@ export async function saveOtherEmployee(formData: FormData) {
     name,
     job_title: jobTitle,
     phone,
+    email,
     cnic,
     monthly_salary: monthlySalary,
   };
@@ -1051,13 +1562,17 @@ export async function saveOtherEmployee(formData: FormData) {
 
   if (error) {
     const msg = error.message.toLowerCase();
+    if (msg.includes("cnic") || msg.includes("other_employees_school_cnic_uidx")) {
+      return { ok: false, error: "This CNIC is already registered in the system.", field: "cnic" };
+    }
     if (msg.includes("joined_on") || msg.includes("other_employees") || msg.includes("relation") || msg.includes("policy")) {
       return {
+        ok: false,
         error:
           "Run supabase/migration_other_employees.sql and migration_joined_on.sql in Supabase, then try again.",
       };
     }
-    return { error: error.message };
+    return { ok: false, error: error.message };
   }
 
   revalidatePath("/finance/employees");
@@ -1091,7 +1606,10 @@ export async function setOtherEmployeeActive(employeeId: string, active: boolean
 }
 
 export async function payOtherEmployeeSalary(formData: FormData) {
-  const { supabase, schoolId } = await finance();
+  const ctx = await getContext();
+  if (!ctx.schoolId || ctx.readOnly) return { error: "Not allowed" };
+  if (!["finance", "principal"].includes(ctx.profile.role)) return { error: "Not allowed" };
+  const { supabase, schoolId } = { supabase: ctx.supabase, schoolId: ctx.schoolId! };
   const { parsePeriod } = await import("@/lib/period");
   const period = parsePeriod({ month: formData.get("month") as string, year: formData.get("year") as string });
   if (period.isFuture) {
@@ -1292,7 +1810,7 @@ export async function saveAnnouncement(formData: FormData) {
 
   const allowedByRole: Record<string, string[]> = {
     principal: ["all", "finance", "teachers", "teacher"],
-    teacher: ["principal", "finance"],
+    teacher: ["principal", "finance", "teacher"],
     finance: ["principal", "teachers"],
   };
   const allowed = allowedByRole[profile.role] || [];
@@ -1364,6 +1882,23 @@ export async function deleteAnnouncement(id: string) {
   revalidatePath("/principal/announcements/make");
   revalidatePath("/teacher/announcements");
   revalidatePath("/finance/announcements");
+}
+
+export async function getLatestAnnouncementInfo() {
+  try {
+    const ctx = await getContext();
+    if (!ctx.schoolId) return { ok: false, latestAt: null, id: null };
+    const { data } = await ctx.supabase
+      .from("announcements")
+      .select("id, created_at, title")
+      .eq("school_id", ctx.schoolId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return { ok: true, latestAt: data?.created_at || null, id: data?.id || null, title: data?.title || null };
+  } catch {
+    return { ok: false, latestAt: null, id: null };
+  }
 }
 export async function saveAttendance(rows: { student_id: string; section_id: string; date: string; status: string }[]) {
   const ctx = await getContext();
@@ -1773,4 +2308,36 @@ export async function publishTimetable(_formData?: FormData) {
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Publish failed" };
   }
+}
+
+/** Quick update fee and discount structure for an individual student (Finance / Principal) */
+export async function updateStudentFee(studentId: string, formData: FormData) {
+  const ctx = await getContext();
+  if (!ctx.schoolId || ctx.readOnly) return { ok: false, error: "Not allowed" };
+  if (!["finance", "principal"].includes(ctx.profile.role)) return { ok: false, error: "Not allowed" };
+
+  const admission_fee = Number(formData.get("admission_fee") || 0);
+  const monthly_fee = Number(formData.get("monthly_fee") || 0);
+  const transport_fee = Number(formData.get("transport_fee") || 0);
+  const misc_fee = Number(formData.get("misc_fee") || 0);
+  const discount = Number(formData.get("discount") || 0);
+
+  const { error } = await ctx.supabase
+    .from("students")
+    .update({
+      admission_fee: Math.max(0, isNaN(admission_fee) ? 0 : admission_fee),
+      monthly_fee: Math.max(0, isNaN(monthly_fee) ? 0 : monthly_fee),
+      transport_fee: Math.max(0, isNaN(transport_fee) ? 0 : transport_fee),
+      misc_fee: Math.max(0, isNaN(misc_fee) ? 0 : misc_fee),
+      discount: Math.max(0, isNaN(discount) ? 0 : discount),
+    })
+    .eq("id", studentId)
+    .eq("school_id", ctx.schoolId);
+
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/finance/students/${studentId}`);
+  revalidatePath(`/principal/students/${studentId}`);
+  revalidatePath("/finance/students");
+  revalidatePath("/principal/students");
+  return { ok: true };
 }

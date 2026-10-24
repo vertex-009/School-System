@@ -46,3 +46,10 @@ body {
     box-shadow: none !important;
   }
 }
+
+/* Hide Next.js Devtools indicator floating badge */
+nextjs-portal,
+[data-nextjs-dev-tools-button],
+[data-nextjs-toast] {
+  display: none !important;
+}

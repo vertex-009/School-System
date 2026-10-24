@@ -3,14 +3,16 @@
 import { useActionState, useMemo, useState } from "react";
 import Link from "next/link";
 import { saveAnnouncement } from "@/lib/actions";
+import { broadcastNewAnnouncement } from "@/lib/announcement-events";
 import { Shell } from "@/components/shell";
-import { Back, Card, Field } from "@/components/ui";
+import { Back, Card, Field, Select } from "@/components/ui";
 import { MONTHS } from "@/lib/format";
 
 const OPTIONS: Record<"teacher" | "finance", { value: string; label: string }[]> = {
   teacher: [
     { value: "principal", label: "Principal" },
     { value: "finance", label: "Finance" },
+    { value: "teacher", label: "Specific Teacher" },
   ],
   finance: [
     { value: "principal", label: "Principal" },
@@ -18,15 +20,29 @@ const OPTIONS: Record<"teacher" | "finance", { value: string; label: string }[]>
   ],
 };
 
-export function StaffAnnouncementForm({ role }: { role: "teacher" | "finance" }) {
+export function StaffAnnouncementForm({
+  role,
+  teachers = [],
+}: {
+  role: "teacher" | "finance";
+  teachers?: { id: string; name: string }[];
+}) {
   const options = OPTIONS[role];
   const [selected, setSelected] = useState<string[]>(() => options.map((o) => o.value));
+  const [targetTeacherId, setTargetTeacherId] = useState("");
   const [kind, setKind] = useState<"general" | "fee_open">("general");
+  const needsTeacher = role === "teacher" && selected.includes("teacher");
   const now = useMemo(() => new Date(), []);
   const [feeMonth, setFeeMonth] = useState(now.getMonth() + 1);
   const [feeYear, setFeeYear] = useState(now.getFullYear());
   const [body, setBody] = useState("");
-  const [state, action, pending] = useActionState(async (_: unknown, fd: FormData) => saveAnnouncement(fd), null);
+  const [state, action, pending] = useActionState(async (_: unknown, fd: FormData) => {
+    const res = await saveAnnouncement(fd);
+    if (res?.ok) {
+      broadcastNewAnnouncement();
+    }
+    return res;
+  }, null);
   const historyHref = `/${role}/announcements`;
 
   const curKey = now.getFullYear() * 12 + (now.getMonth() + 1);
@@ -226,9 +242,31 @@ export function StaffAnnouncementForm({ role }: { role: "teacher" | "finance" })
             )}
           </fieldset>
 
+          {needsTeacher && (
+            <Select
+              label="Select Teacher"
+              name="target_teacher_id"
+              required
+              value={targetTeacherId}
+              onChange={(e) => setTargetTeacherId(e.target.value)}
+            >
+              <option value="">-- Choose a teacher --</option>
+              {teachers.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </Select>
+          )}
+
           <button
             type="submit"
-            disabled={pending || !selected.length || (kind === "fee_open" && (isFutureFee || !feeBodyOk))}
+            disabled={
+              pending ||
+              !selected.length ||
+              (kind === "fee_open" && (isFutureFee || !feeBodyOk)) ||
+              (needsTeacher && !targetTeacherId)
+            }
             className="rounded-xl bg-brand-navy px-4 py-2.5 text-sm font-bold text-white transition hover:bg-brand-accent disabled:opacity-60"
           >
             {pending

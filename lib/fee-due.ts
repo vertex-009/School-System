@@ -40,13 +40,23 @@ export function invoiceDue(inv: FeeDueInvoice): number {
 /**
  * Month breakdown + total due for open invoices.
  * Optional throughMonth/throughYear caps which months are included (inclusive).
+ * Optional fromMonth/fromYear skips months before admission / join (inclusive).
  * Lines sorted oldest → newest (default pay focus = first line).
  */
 export function feeDueBreakdown(
   invoices: FeeDueInvoice[],
-  opts?: { throughMonth?: number; throughYear?: number }
+  opts?: {
+    throughMonth?: number;
+    throughYear?: number;
+    fromMonth?: number;
+    fromYear?: number;
+  }
 ): FeeDueSummary {
   let list = [...invoices];
+  if (opts?.fromMonth != null && opts?.fromYear != null) {
+    const from = periodKey(opts.fromMonth, opts.fromYear);
+    list = list.filter((inv) => periodKey(inv.month, inv.year) >= from);
+  }
   if (opts?.throughMonth != null && opts?.throughYear != null) {
     const through = periodKey(opts.throughMonth, opts.throughYear);
     list = list.filter((inv) => periodKey(inv.month, inv.year) <= through);

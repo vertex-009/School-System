@@ -66,7 +66,7 @@ function applyRoleGuards(request: NextRequest, response: NextResponse) {
   if (path.startsWith("/teacher") && role !== "teacher") return redirectTo(request, "/", response);
   if (path.startsWith("/finance") && role !== "finance") return redirectTo(request, "/", response);
   if (path.startsWith("/principal") && role !== "principal") return redirectTo(request, "/", response);
-  if (path === "/login") return redirectTo(request, "/", response);
+  // Do NOT block /login so user can always open login in a new tab or switch accounts
   return response;
 }
 

@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import Link from "next/link";
 import { saveAnnouncement } from "@/lib/actions";
+import { broadcastNewAnnouncement } from "@/lib/announcement-events";
 import { Shell } from "@/components/shell";
 import { Back, Card, Field, Select } from "@/components/ui";
 
@@ -17,7 +18,13 @@ const OPTIONS = [
 
 export function MakeAnnouncementForm({ teachers }: { teachers: Teacher[] }) {
   const [selected, setSelected] = useState<string[]>(["all"]);
-  const [state, action, pending] = useActionState(async (_: unknown, fd: FormData) => saveAnnouncement(fd), null);
+  const [state, action, pending] = useActionState(async (_: unknown, fd: FormData) => {
+    const res = await saveAnnouncement(fd);
+    if (res?.ok) {
+      broadcastNewAnnouncement();
+    }
+    return res;
+  }, null);
 
   function toggle(value: string) {
     setSelected((cur) => {
@@ -32,8 +39,8 @@ export function MakeAnnouncementForm({ teachers }: { teachers: Teacher[] }) {
   return (
     <Shell role="principal" title="Make announcement">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Back href="/principal/announcements" label="← History" />
-        <Link href="/principal/announcements" className="text-xs font-bold text-brand-accent hover:underline">
+        <Back href="/principal/announcements" label="← Announcements" />
+        <Link href="/principal/announcements/history" className="text-xs font-bold text-brand-accent hover:underline">
           View history →
         </Link>
       </div>
@@ -41,7 +48,7 @@ export function MakeAnnouncementForm({ teachers }: { teachers: Teacher[] }) {
       {state?.ok && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-900">
           Announcement published.{" "}
-          <Link href="/principal/announcements" className="underline">
+          <Link href="/principal/announcements/history" className="underline">
             See history
           </Link>
         </div>

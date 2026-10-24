@@ -60,4 +60,16 @@ describe("feeDueBreakdown", () => {
     expect(summary.lines[0]?.due).toBe(2000);
     expect(summary.lines[1]?.due).toBe(2000);
   });
+
+  it("fromMonth skips invoices before admission month", () => {
+    const summary = feeDueBreakdown(
+      [
+        { id: "feb", month: 2, year: 2026, amount: 10000, paid_amount: 0, status: "unpaid" },
+        { id: "sep", month: 9, year: 2026, amount: 10000, paid_amount: 0, status: "unpaid" },
+      ],
+      { fromMonth: 9, fromYear: 2026, throughMonth: 10, throughYear: 2026 }
+    );
+    expect(summary.lines.map((l) => l.id)).toEqual(["sep"]);
+    expect(summary.totalDue).toBe(10000);
+  });
 });

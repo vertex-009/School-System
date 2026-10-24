@@ -1,15 +1,13 @@
 import Link from "next/link";
-import { collectFee } from "@/lib/actions";
 import { Shell } from "@/components/shell";
-import { PeriodFilter } from "@/components/period-filter";
-import { Card, Select, Submit } from "@/components/ui";
 import { classNameOf } from "@/lib/class-label";
 import { feeDueBreakdown } from "@/lib/fee-due";
-import { pkr } from "@/lib/format";
+import { MONTHS, pkr } from "@/lib/format";
 import { parsePeriod } from "@/lib/period";
-import { filterStudentsBySearch, studentSearchOr } from "@/lib/search";
 import { getContext } from "@/lib/session";
 import { redirect } from "next/navigation";
+import { StudentSearchBar } from "./student-search-bar";
+import { CollectFeeLineForm } from "./collect-fee-form";
 
 type InvRow = {
   id: string;
@@ -25,22 +23,29 @@ type InvRow = {
     father_name?: string;
     admission_no?: string;
     roll_no?: number | null;
+    created_at?: string;
     sections?: unknown;
   } | null;
 };
 
+function admissionPeriod(createdAt?: string | null) {
+  if (!createdAt) return null;
+  const d = new Date(createdAt);
+  if (Number.isNaN(d.getTime())) return null;
+  return { month: d.getUTCMonth() + 1, year: d.getUTCFullYear() };
+}
+
 export default async function CollectFeePage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; month?: string; year?: string }>;
+  searchParams: Promise<{ q?: string; student_id?: string; month?: string; year?: string }>;
 }) {
   const sp = await searchParams;
   const q = String(sp.q || "").trim();
+  const studentIdParam = String(sp.student_id || "").trim();
   const period = parsePeriod(sp);
   const { supabase, schoolId, profile } = await getContext();
   if (profile.role !== "finance" || !schoolId) redirect("/");
-
-  // No auto invoice generation on this page — use Dashboard → Generate invoices.
 
   type StudentBundle = {
     studentId: string;
@@ -48,41 +53,53 @@ export default async function CollectFeePage({
     lines: ReturnType<typeof feeDueBreakdown>["lines"];
     totalDue: number;
     oldestId: string | undefined;
+    fromLabel: string | null;
+  };
+
+  type EnrolledStudent = {
+    id: string;
+    name: string;
+    father_name: string | null;
+    admission_no: string;
+    roll_no: number | null;
+    created_at: string | null;
+    sections: unknown;
   };
 
   let bundles: StudentBundle[] = [];
+  let enrolledWithoutDues: EnrolledStudent[] = [];
 
-  if (q) {
-    const { data: byText } = await supabase
+  if (q || studentIdParam) {
+    let studentQuery = supabase
       .from("students")
-      .select("id, name, father_name, admission_no")
+      .select("id, name, father_name, admission_no, roll_no, created_at, sections(name, classes(name))")
       .eq("school_id", schoolId)
-      .eq("status", "active")
-      .or(studentSearchOr(q))
-      .limit(80);
-    const matched = filterStudentsBySearch(byText || [], q);
-    const ids = new Set(matched.map((s) => s.id));
+      .eq("status", "active");
 
-    if (/^\d+$/.test(q)) {
-      const { data: byRoll } = await supabase
-        .from("students")
-        .select("id")
-        .eq("school_id", schoolId)
-        .eq("status", "active")
-        .eq("roll_no", Number(q))
-        .limit(40);
-      for (const s of byRoll || []) ids.add(s.id);
+    if (studentIdParam) {
+      studentQuery = studentQuery.eq("id", studentIdParam);
+    } else {
+      const cleanQ = q.replace(/[%_\\]/g, "").trim();
+      if (/^\d+$/.test(cleanQ)) {
+        studentQuery = studentQuery.or(`roll_no.eq.${cleanQ},admission_no.ilike.%${cleanQ}%,name.ilike.%${cleanQ}%`);
+      } else {
+        studentQuery = studentQuery.or(`name.ilike.%${cleanQ}%,father_name.ilike.%${cleanQ}%,admission_no.ilike.%${cleanQ}%`);
+      }
     }
 
-    if (ids.size) {
+    const { data: matchedStudents } = await studentQuery.limit(30);
+    const studentsList = (matchedStudents || []) as EnrolledStudent[];
+    const ids = studentsList.map((s) => s.id);
+
+    if (ids.length) {
       const { data: invoices } = await supabase
         .from("fee_invoices")
         .select(
-          "id, student_id, amount, discount, paid_amount, status, month, year, students(name, father_name, admission_no, roll_no, sections(name, classes(name)))"
+          "id, student_id, amount, discount, paid_amount, status, month, year, students(name, father_name, admission_no, roll_no, created_at, sections(name, classes(name)))"
         )
         .eq("school_id", schoolId)
         .in("status", ["unpaid", "partial"])
-        .in("student_id", [...ids])
+        .in("student_id", ids)
         .order("year", { ascending: true })
         .order("month", { ascending: true })
         .limit(300);
@@ -94,21 +111,33 @@ export default async function CollectFeePage({
         byStudent.set(inv.student_id, list);
       }
 
+      const studentsWithDues = new Set<string>();
+
       bundles = [...byStudent.entries()]
-        .map(([studentId, invs]) => {
+        .map(([sId, invs]) => {
+          const student = invs[0]?.students || null;
+          const sObj = studentsList.find((s) => s.id === sId);
+          const adm = admissionPeriod(sObj?.created_at || student?.created_at);
           const summary = feeDueBreakdown(invs, {
             throughMonth: period.month,
             throughYear: period.year,
+            ...(adm ? { fromMonth: adm.month, fromYear: adm.year } : {}),
           });
+          if (summary.totalDue > 0) {
+            studentsWithDues.add(sId);
+          }
           return {
-            studentId,
-            student: invs[0]?.students || null,
+            studentId: sId,
+            student,
             lines: summary.lines,
             totalDue: summary.totalDue,
             oldestId: summary.lines[0]?.id,
+            fromLabel: adm ? `${MONTHS[adm.month - 1]} ${adm.year}` : null,
           };
         })
         .filter((b) => b.totalDue > 0);
+
+      enrolledWithoutDues = studentsList.filter((s) => !studentsWithDues.has(s.id));
     }
   }
 
@@ -116,151 +145,203 @@ export default async function CollectFeePage({
 
   return (
     <Shell role="finance" title="Collect cash">
-      <p className="text-sm text-slate-600">
-        Search a student. Pay one full month at a time (oldest unpaid first). Generate invoices from the{" "}
-        <Link href="/finance" className="font-bold text-brand-accent hover:underline">
-          Dashboard
-        </Link>
-        . Full lists:{" "}
-        <Link href="/finance/fee-records" className="font-bold text-brand-accent hover:underline">
-          Student fee records
-        </Link>
-        .
-      </p>
+      {/* Period & Autocomplete Search Bar */}
+      <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs">
+        <form method="get" className="flex flex-col gap-3 lg:flex-row lg:items-end">
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="text-xs font-bold text-slate-700">
+              Month
+              <select
+                name="month"
+                defaultValue={String(period.month)}
+                className="mt-1 block rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-brand-navy outline-none focus:border-brand-sky"
+              >
+                {MONTHS.map((m, i) => (
+                  <option key={m} value={i + 1}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-      <PeriodFilter
-        period={period}
-        title="Through month & search"
-        submitLabel="Search"
-        extra={
-          <label className="min-w-[14rem] flex-1 text-xs font-bold text-slate-600">
-            Student
-            <input
-              name="q"
-              defaultValue={q}
-              placeholder="Name, father, admission or roll"
-              required
-              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-            />
-          </label>
-        }
-      />
+            <label className="text-xs font-bold text-slate-700">
+              Year
+              <input
+                name="year"
+                type="number"
+                min={2000}
+                max={2100}
+                defaultValue={period.year}
+                className="mt-1 block w-24 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-brand-navy outline-none focus:border-brand-sky"
+              >
+              </input>
+            </label>
+          </div>
 
-      {!q ? (
-        <Card title="Collect cash">
-          <p className="text-sm text-slate-500">
-            Type a student name (or roll / admission) and press Search. Unpaid months through the selected period are listed.
+          <div className="flex-1">
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Search Student
+            </label>
+            <StudentSearchBar defaultValue={q} month={period.month} year={period.year} />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="submit"
+              className="rounded-xl bg-brand-navy px-5 py-2.5 text-sm font-bold text-white shadow-xs transition hover:bg-brand-accent active:scale-95 cursor-pointer"
+            >
+              Search
+            </button>
+            <Link
+              href="/finance/history"
+              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-white hover:border-slate-300 transition shadow-xs text-center whitespace-nowrap"
+            >
+              Collection History →
+            </Link>
+          </div>
+        </form>
+      </div>
+
+      {!q && !studentIdParam ? (
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center shadow-xs">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+          <h3 className="text-base font-bold text-brand-navy">Search Student to Collect Fee</h3>
+          <p className="text-xs text-slate-500 mt-1">
+            Type student name, roll number, or admission number above.
           </p>
-        </Card>
-      ) : !bundles.length ? (
-        <Card title={`No unpaid for “${q}” through ${period.label}`}>
-          <p className="text-sm text-slate-500">
-            No unpaid / partial invoices up to {period.label}. If this month was never generated, use Dashboard → Generate
-            invoices.
-          </p>
-        </Card>
+        </div>
+      ) : !bundles.length && !enrolledWithoutDues.length ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-xs">
+          <p className="text-sm font-semibold text-slate-700">No active student matched &ldquo;{q}&rdquo;.</p>
+          <p className="text-xs text-slate-400 mt-1">Verify spelling, roll number, or check the Student Directory.</p>
+        </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-6">
+          {/* Fee Receipt / Voucher Presentation for Students With Dues */}
           {bundles.map((b) => {
             const student = b.student;
             const klass = classNameOf(student?.sections);
             const father = student?.father_name || "";
             return (
-              <Card
+              <section
                 key={b.studentId}
-                title={student?.name || "Student"}
-                subtitle={`Through ${period.label} · Total due ${pkr(b.totalDue)}`}
+                className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm"
               >
-                <dl className="mb-4 grid gap-2 text-sm sm:grid-cols-2">
-                  <div>
-                    <dt className="text-xs font-bold uppercase tracking-wide text-slate-400">Name</dt>
-                    <dd className="font-bold text-brand-navy">{student?.name || "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs font-bold uppercase tracking-wide text-slate-400">Roll no.</dt>
-                    <dd className="font-semibold">{student?.roll_no ?? "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs font-bold uppercase tracking-wide text-slate-400">Class</dt>
-                    <dd className="font-semibold">{klass}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs font-bold uppercase tracking-wide text-slate-400">Father name</dt>
-                    <dd className="font-semibold">{father || "—"}</dd>
-                  </div>
-                </dl>
-
-                <div className="mb-4 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Month breakdown</p>
-                  <ul className="mt-2 space-y-1 text-sm">
-                    {b.lines.map((line) => (
-                      <li key={line.id || `${line.month}-${line.year}`} className="flex justify-between gap-2">
-                        <span className={line.id === b.oldestId ? "font-bold text-brand-navy" : "text-slate-600"}>
-                          {line.label}
-                          {line.id === b.oldestId ? " · pay first" : ""}
-                        </span>
-                        <span className="font-bold text-rose-700">{pkr(line.due)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="mt-3 flex justify-between border-t border-slate-200 pt-2 text-sm">
-                    <span className="font-bold uppercase tracking-wide text-slate-500">Total due</span>
-                    <span className="text-lg font-black text-brand-navy">{pkr(b.totalDue)}</span>
-                  </div>
-                </div>
-
-                <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">
-                  Pay one full month (amount locked)
-                </p>
-                <div className="space-y-3">
-                  {b.lines.map((line) => {
-                    const isOldest = line.id === b.oldestId;
-                    return (
-                      <form
-                        key={line.id}
-                        action={async (fd) => {
-                          "use server";
-                          const r = await collectFee(fd);
-                          if (r?.error) throw new Error(r.error);
-                        }}
-                        className={`grid gap-2 rounded-xl border p-3 md:grid-cols-4 ${
-                          isOldest ? "border-brand-navy/40 bg-brand-soft/30" : "border-slate-100"
-                        }`}
-                      >
-                        <input type="hidden" name="invoice_id" value={line.id} />
-                        <input type="hidden" name="amount" value={String(line.due)} />
-                        <input type="hidden" name="received_from" value={father} />
-                        <div className="md:col-span-2 self-center text-sm">
-                          {isOldest && (
-                            <span className="mr-2 rounded-md bg-brand-navy px-2 py-0.5 text-[10px] font-bold uppercase text-white">
-                              Default
-                            </span>
+                {/* Clean Receipt Header */}
+                <div className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-sky-50/40 p-5 sm:p-6">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-navy text-white shadow-xs">
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-xl font-black text-brand-navy">{student?.name || "Student"}</h2>
+                          <span className="rounded-md bg-brand-soft px-2 py-0.5 text-xs font-extrabold text-brand-navy">
+                            {klass}
+                          </span>
+                        </div>
+                        <p className="text-xs font-semibold text-slate-500 mt-0.5">
+                          Father: <span className="text-slate-800">{father || "—"}</span>
+                          {student?.roll_no != null && (
+                            <> · Roll: <span className="text-slate-800 font-bold">{student.roll_no}</span></>
                           )}
-                          <span className="font-bold text-brand-navy">{line.label}</span>
-                          <label className="mt-1 block text-xs font-bold text-slate-600">
-                            Amount (full invoice)
-                            <input
-                              readOnly
-                              value={line.due}
-                              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-brand-navy"
-                            />
-                          </label>
-                        </div>
-                        <Select label="Method" name="method" defaultValue="cash">
-                          <option value="cash">Cash</option>
-                          <option value="bank">Bank</option>
-                          <option value="jazzcash">JazzCash</option>
-                          <option value="easypaisa">Easypaisa</option>
-                        </Select>
-                        <div className="flex flex-col justify-end gap-1">
-                          <p className="text-[10px] text-slate-400">Received by {financeName}</p>
-                          <Submit>{isOldest ? "Pay oldest month" : "Pay this month"}</Submit>
-                        </div>
-                      </form>
-                    );
-                  })}
+                          {student?.admission_no && (
+                            <> · Adm No: <span className="text-slate-800 font-mono font-bold">{student.admission_no}</span></>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-right">
+                      <p className="text-[10px] font-extrabold uppercase tracking-wider text-rose-600">Total Due Balance</p>
+                      <p className="text-xl font-black text-rose-800 tabular-nums">{pkr(b.totalDue)}</p>
+                    </div>
+                  </div>
+
+                  {/* Voucher Summary Bar */}
+                  <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-slate-200/80 pt-3 text-xs">
+                    <div>
+                      <span className="text-slate-400 font-medium">Class:</span>
+                      <p className="font-bold text-brand-navy">{klass}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-medium">Roll No:</span>
+                      <p className="font-bold text-brand-navy">{student?.roll_no ?? "—"}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-medium">Admission No:</span>
+                      <p className="font-mono font-bold text-brand-navy">{student?.admission_no || "—"}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-medium">Billing Period:</span>
+                      <p className="font-bold text-brand-navy">{period.label}</p>
+                    </div>
+                  </div>
                 </div>
-              </Card>
+
+                {/* Receipt Fee Collection Lines */}
+                <div className="p-5 sm:p-6 space-y-4">
+                  <div className="space-y-4">
+                    {b.lines.map((line) => (
+                      <CollectFeeLineForm
+                        key={line.id}
+                        line={line}
+                        fatherName={father}
+                        financeName={financeName}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </section>
+            );
+          })}
+
+          {/* Enrolled Students with No Unpaid Balance */}
+          {enrolledWithoutDues.map((s) => {
+            const klass = classNameOf(s.sections);
+            return (
+              <div
+                key={s.id}
+                className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/50 to-white p-5 shadow-xs"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-emerald-100 pb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-bold text-brand-navy">{s.name}</h3>
+                      <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
+                        Enrolled &amp; Active
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Class: <b>{klass}</b> · Roll: <b>{s.roll_no ?? "—"}</b> · Adm: <b className="font-mono">{s.admission_no}</b> · Father: <b>{s.father_name || "—"}</b>
+                    </p>
+                  </div>
+                  <Link
+                    href={`/finance/students/${s.id}`}
+                    className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                  >
+                    View Profile →
+                  </Link>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
+                  <p>
+                    ✓ No unpaid fee dues through <b>{period.label}</b>.
+                  </p>
+                  <Link
+                    href="/finance"
+                    className="font-bold text-brand-accent hover:underline"
+                  >
+                    Generate Invoices from Dashboard →
+                  </Link>
+                </div>
+              </div>
             );
           })}
         </div>

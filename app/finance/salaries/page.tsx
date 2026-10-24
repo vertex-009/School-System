@@ -1,72 +1,131 @@
-import { saveSalary } from "@/lib/actions";
 import { Shell } from "@/components/shell";
-import { Card } from "@/components/ui";
-import { pkr } from "@/lib/format";
+import { Back } from "@/components/ui";
+import { parsePeriod } from "@/lib/period";
 import { getContext } from "@/lib/session";
 import { redirect } from "next/navigation";
+import { PrincipalSalaryView, StaffSalaryItem } from "@/app/principal/salaries/salary-view";
 
-export default async function SalariesPage() {
+export default async function FinanceSalariesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string; year?: string; type?: string; status?: string }>;
+}) {
+  const sp = await searchParams;
   const { supabase, schoolId, profile } = await getContext();
   if (profile.role !== "finance" || !schoolId) redirect("/");
 
-  const [{ data: staff }, { data: salaries }] = await Promise.all([
+  const period = parsePeriod(sp);
+  const activeTab = (sp.type === "employees" ? "employees" : "teachers") as "teachers" | "finance" | "employees";
+  const initialStatus = (
+    sp.status === "paid" || sp.status === "pending" || sp.status === "all" ? sp.status : null
+  ) as "all" | "pending" | "paid" | null;
+
+  // Fetch all teacher profiles, other employees, salaries, and salary payments
+  const [
+    { data: staffProfiles },
+    { data: teacherSalaries },
+    { data: staffPayments },
+    { data: otherEmployeesData },
+    { data: otherPayments },
+  ] = await Promise.all([
     supabase
       .from("profiles")
-      .select("id, name, phone, is_active, role")
+      .select("id, name, email, role, phone, joined_on, left_on, is_active")
       .eq("school_id", schoolId)
-      .in("role", ["teacher", "finance"])
+      .eq("role", "teacher")
+      .eq("is_active", true)
       .order("name"),
     supabase.from("teacher_salaries").select("teacher_id, monthly_salary").eq("school_id", schoolId),
+    supabase
+      .from("salary_payments")
+      .select("id, teacher_id, amount, receipt_no, paid_at, method, month, year")
+      .eq("school_id", schoolId)
+      .eq("month", period.month)
+      .eq("year", period.year),
+    supabase
+      .from("other_employees")
+      .select("id, name, email, job_title, phone, joined_on, left_on, is_active, monthly_salary")
+      .eq("school_id", schoolId)
+      .eq("is_active", true)
+      .order("name"),
+    supabase
+      .from("other_salary_payments")
+      .select("id, employee_id, amount, receipt_no, paid_at, method, month, year")
+      .eq("school_id", schoolId)
+      .eq("month", period.month)
+      .eq("year", period.year),
   ]);
-  const map = Object.fromEntries((salaries || []).map((s) => [s.teacher_id, s.monthly_salary]));
+
+  const salaryMap = Object.fromEntries(
+    (teacherSalaries || []).map((s) => [s.teacher_id, Number(s.monthly_salary || 0)])
+  );
+  const staffPaymentMap = Object.fromEntries(
+    (staffPayments || []).map((p) => [p.teacher_id, p])
+  );
+  const otherPaymentMap = Object.fromEntries(
+    (otherPayments || []).map((p) => [p.employee_id, p])
+  );
+
+  // Map Teachers
+  const teachers: StaffSalaryItem[] = (staffProfiles || []).map((p) => {
+    const pay = staffPaymentMap[p.id];
+    return {
+      id: p.id,
+      name: p.name,
+      role: "Teacher",
+      email: p.email,
+      phone: p.phone,
+      joined_on: p.joined_on,
+      monthly_salary: salaryMap[p.id] || 0,
+      isPaid: Boolean(pay),
+      paymentId: pay?.id || null,
+      receipt: pay?.receipt_no || null,
+      paidAmount: pay ? Number(pay.amount) : null,
+      paidAt: pay?.paid_at || null,
+      method: pay?.method || null,
+    };
+  });
+
+  // Map Other Employees
+  const otherEmployees: StaffSalaryItem[] = (otherEmployeesData || []).map((e) => {
+    const pay = otherPaymentMap[e.id];
+    return {
+      id: e.id,
+      name: e.name,
+      role: e.job_title || "Staff",
+      email: e.email,
+      phone: e.phone,
+      joined_on: e.joined_on,
+      monthly_salary: Number(e.monthly_salary || 0),
+      isPaid: Boolean(pay),
+      paymentId: pay?.id || null,
+      receipt: pay?.receipt_no || null,
+      paidAmount: pay ? Number(pay.amount) : null,
+      paidAt: pay?.paid_at || null,
+      method: pay?.method || null,
+    };
+  });
 
   return (
-    <Shell role="finance" title="Set salary">
-      <Card
-        title="Monthly salary"
-        subtitle="Set salaries for teachers and finance staff only. Pay and history are under Staff in the sidebar."
-      >
-        <ul className="divide-y divide-slate-100">
-          {(staff || []).map((t) => {
-            const amount = Number(map[t.id] || 0);
-            return (
-              <li key={t.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
-                <div>
-                  <b className="text-brand-navy">{t.name}</b>
-                  <p className="text-xs capitalize text-slate-500">
-                    {t.role} · {t.phone || "—"} · {t.is_active ? "Active" : "Suspended"} · {pkr(amount)} / month
-                  </p>
-                </div>
-                <form
-                  action={async (fd) => {
-                    "use server";
-                    await saveSalary(t.id, Number(fd.get("monthly_salary")));
-                  }}
-                  className="flex items-end gap-2"
-                >
-                  <label className="text-xs font-bold text-slate-600">
-                    Salary (PKR)
-                    <input
-                      name="monthly_salary"
-                      type="number"
-                      min={0}
-                      defaultValue={amount}
-                      required
-                      className="mt-1 w-36 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-brand-sky focus:bg-white focus:ring-2 focus:ring-brand-sky/40"
-                    />
-                  </label>
-                  <button className="rounded-xl bg-brand-navy px-3 py-2 text-xs font-bold text-white hover:bg-brand-accent">
-                    Save
-                  </button>
-                </form>
-              </li>
-            );
-          })}
-        </ul>
-        {!staff?.length && (
-          <p className="text-sm text-slate-500">No staff yet. Principal creates teacher / finance accounts.</p>
-        )}
-      </Card>
+    <Shell role="finance" title="Pay salaries">
+      <div className="flex items-center justify-between gap-3">
+        <Back href="/finance" label="← Finance Dashboard" />
+      </div>
+
+      <PrincipalSalaryView
+        activeTab={activeTab}
+        initialStatus={initialStatus}
+        period={{
+          month: period.month,
+          year: period.year,
+          label: period.label,
+          isFuture: period.isFuture,
+        }}
+        teachers={teachers}
+        otherEmployees={otherEmployees}
+        basePath="/finance/salaries"
+        hideFinanceTab={true}
+      />
     </Shell>
   );
 }

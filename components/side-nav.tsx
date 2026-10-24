@@ -17,134 +17,44 @@ function isGroup(item: NavItem): item is NavGroup {
 const MENUS: Record<ShellRole, NavItem[]> = {
   principal: [
     { href: "/principal", label: "Dashboard" },
-    {
-      id: "finance",
-      label: "Finance",
-      children: [
-        { href: "/principal/staff/new", label: "Add finance" },
-        { href: "/principal/staff", label: "Finance staff" },
-      ],
-    },
-    {
-      id: "faculty",
-      label: "Faculty",
-      children: [
-        { href: "/principal/teachers/new", label: "Add teacher" },
-        { href: "/principal/teachers", label: "View teachers" },
-      ],
-    },
-    {
-      id: "other-employees",
-      label: "Other employees",
-      children: [
-        { href: "/principal/employees/new", label: "Add employee" },
-        { href: "/principal/employees", label: "View" },
-      ],
-    },
-    {
-      id: "assign",
-      label: "Assign teachers",
-      children: [
-        { href: "/principal/assign", label: "Assign teacher" },
-        { href: "/principal/assign/history", label: "History / view" },
-      ],
-    },
-    { href: "/principal/timetable", label: "Timetable" },
-    { href: "/principal/students", label: "Total students" },
-    { href: "/principal/results", label: "Exam / results" },
-    {
-      id: "announcements",
-      label: "Announcements",
-      children: [
-        { href: "/principal/announcements/make", label: "Make announcement" },
-        { href: "/principal/announcements", label: "History" },
-      ],
-    },
+    { href: "/principal/salaries", label: "Pay salaries" },
+    { href: "/principal/faculty", label: "Teachers" },
+    { href: "/principal/finance", label: "Finance" },
+    { href: "/principal/other-employees", label: "Other employees" },
+    { href: "/principal/students", label: "Students" },
+    { href: "/principal/assign", label: "Assign teacher" },
+    { href: "/principal/announcements", label: "Announcements" },
     { href: "/principal/account", label: "Monthly account" },
     { href: "/principal/fees/overview", label: "Financial summary" },
-    { href: "/principal/reports", label: "Reports" },
   ],
   finance: [
     { href: "/finance", label: "Dashboard" },
+    { href: "/finance/salaries", label: "Pay salaries" },
+    { href: "/finance/teachers", label: "Teachers" },
+    { href: "/finance/other-employees", label: "Other employees" },
     { href: "/finance/students", label: "Students" },
-    { href: "/finance/students/new", label: "Add student" },
-    { href: "/finance/students/import", label: "Import by class" },
-    { href: "/finance/students/transfer", label: "Class transfer" },
-    { href: "/finance/students/school-transfer", label: "School transfer" },
-    { href: "/finance/fees", label: "Set class fees" },
+    { href: "/finance/assign", label: "Assign teacher" },
     { href: "/finance/collect", label: "Collect cash" },
     { href: "/finance/history", label: "Collection history" },
-    { href: "/finance/fee-records", label: "Student fee records" },
-    { href: "/finance/fees/receipts", label: "Fee receipts" },
-    { href: "/finance/fees/monthly", label: "Monthly fee collection" },
-    {
-      id: "other-employees",
-      label: "Other employees",
-      children: [
-        { href: "/finance/employees", label: "Set salary" },
-        { href: "/finance/employees/pay", label: "Pay salary" },
-        { href: "/finance/employees/history", label: "History" },
-      ],
-    },
-    {
-      id: "staff",
-      label: "Staff",
-      children: [
-        { href: "/finance/salaries", label: "Set salary" },
-        { href: "/finance/salaries/pay", label: "Pay salary" },
-        { href: "/finance/salaries/status", label: "History" },
-      ],
-    },
-    { href: "/finance/expenses", label: "School expenses" },
-    { href: "/finance/expenses/other", label: "Other payments / expenses" },
-    { href: "/finance/income-vs-expenses", label: "Income vs expenses" },
-    {
-      id: "announcements",
-      label: "Announcements",
-      children: [
-        { href: "/finance/announcements/make", label: "Make announcement" },
-        { href: "/finance/announcements", label: "History" },
-      ],
-    },
-    { href: "/finance/reports", label: "Financial reports" },
+    { href: "/finance/expenses", label: "Other expenses" },
+    { href: "/finance/account", label: "Monthly account" },
+    { href: "/finance/income-vs-expenses", label: "Financial summary" },
+    { href: "/finance/announcements", label: "Announcements" },
   ],
   teacher: [
     { href: "/teacher", label: "Dashboard" },
-    {
-      id: "timetable",
-      label: "Timetable",
-      children: [
-        { href: "/teacher/timetable", label: "My timetable" },
-        { href: "/teacher/classes", label: "Assigned classes" },
-      ],
-    },
+    { href: "/teacher/classes", label: "Assigned classes" },
     { href: "/teacher/students", label: "Students" },
-    { href: "/teacher/attendance", label: "Mark attendance" },
-    { href: "/teacher/marks", label: "Enter marks" },
-    {
-      id: "salary",
-      label: "My salary",
-      children: [
-        { href: "/teacher/salary", label: "Current month" },
-        { href: "/teacher/salary/history", label: "History" },
-      ],
-    },
-    {
-      id: "announcements",
-      label: "Announcements",
-      children: [
-        { href: "/teacher/announcements/make", label: "Make announcement" },
-        { href: "/teacher/announcements", label: "History" },
-      ],
-    },
-    { href: "/teacher/reports", label: "Reports" },
+    { href: "/teacher/salary", label: "Salary" },
+    { href: "/teacher/announcements", label: "Announcements" },
   ],
 };
 
 const EXTRA = ["/profile"];
 const ROOTS = new Set(["/principal", "/finance", "/teacher"]);
+const SIBLING_SEGS = new Set(["new", "make", "pay", "status", "history", "import", "transfer", "school-transfer"]);
 
-/** Module-level so desktop+mobile SideNav don’t double-warm the same href. */
+/** Module-level so desktop+mobile SideNav don't double-warm the same href. */
 const warmedHrefs = new Set<string>();
 
 function fullPrefetch(router: ReturnType<typeof useRouter>, href: string) {
@@ -158,21 +68,79 @@ function flattenHrefs(items: NavItem[]): string[] {
   return items.flatMap((item) => (isGroup(item) ? item.children.map((c) => c.href) : [item.href]));
 }
 
-/** Sibling route segments that must not activate a parent leaf (e.g. /salaries vs /salaries/pay). */
-const SIBLING_SEGS = new Set(["new", "make", "pay", "status", "history", "import", "transfer", "school-transfer"]);
-
 function leafActive(pathname: string, href: string) {
-  if (ROOTS.has(href)) return pathname === href;
-  if (pathname === href) return true;
-  if (!pathname.startsWith(`${href}/`)) return false;
-  if (href.endsWith("/new") || href.endsWith("/make")) return false;
-  const next = pathname.slice(href.length + 1).split("/")[0];
+  const [baseHref] = href.split("?");
+  if (ROOTS.has(baseHref)) return pathname === baseHref;
+  if (baseHref === "/principal/finance" && (pathname === "/principal/finance" || pathname.startsWith("/principal/staff"))) {
+    return true;
+  }
+  if (baseHref === "/principal/faculty" && (pathname === "/principal/faculty" || pathname.startsWith("/principal/teachers"))) {
+    return true;
+  }
+  if (baseHref === "/principal/other-employees" && (pathname === "/principal/other-employees" || pathname.startsWith("/principal/employees"))) {
+    return true;
+  }
+  if (baseHref === "/principal/students" && pathname.startsWith("/principal/students")) {
+    return true;
+  }
+  if (baseHref === "/finance/students" && pathname.startsWith("/finance/students")) {
+    return true;
+  }
+  if (baseHref === "/finance/teachers" && pathname.startsWith("/finance/teachers")) {
+    return true;
+  }
+  if (baseHref === "/finance/other-employees" && (pathname.startsWith("/finance/other-employees") || pathname.startsWith("/finance/employees"))) {
+    return true;
+  }
+  if (baseHref === "/finance/employees" && pathname.startsWith("/finance/employees")) {
+    return true;
+  }
+  if (baseHref === "/finance/assign" && pathname.startsWith("/finance/assign")) {
+    return true;
+  }
+  if (baseHref === "/finance/salaries" && pathname.startsWith("/finance/salaries")) {
+    return true;
+  }
+  if (baseHref === "/finance/account" && pathname.startsWith("/finance/account")) {
+    return true;
+  }
+  if (baseHref === "/teacher/classes" && pathname.startsWith("/teacher/classes")) {
+    return true;
+  }
+  if (baseHref === "/teacher/students" && pathname.startsWith("/teacher/students")) {
+    return true;
+  }
+  if (baseHref === "/teacher/salary" && pathname.startsWith("/teacher/salary")) {
+    return true;
+  }
+  if (baseHref === "/teacher/announcements" && pathname.startsWith("/teacher/announcements")) {
+    return true;
+  }
+  if (baseHref === "/finance/announcements" && pathname.startsWith("/finance/announcements")) {
+    return true;
+  }
+  if (baseHref === "/principal/announcements" && pathname.startsWith("/principal/announcements")) {
+    return true;
+  }
+  if (baseHref === "/principal/assign" && pathname.startsWith("/principal/assign")) {
+    return true;
+  }
+  if (pathname === baseHref) return true;
+  if (!pathname.startsWith(`${baseHref}/`)) return false;
+  if (baseHref.endsWith("/new") || baseHref.endsWith("/make")) return false;
+  const next = pathname.slice(baseHref.length + 1).split("/")[0];
   if (SIBLING_SEGS.has(next)) return false;
   return true;
 }
 
 function groupOpen(pathname: string, group: NavGroup) {
-  return group.children.some((c) => leafActive(pathname, c.href) || pathname.startsWith(`${c.href}/`));
+  if (pathname === "/principal/salaries") {
+    return false;
+  }
+  return group.children.some((c) => {
+    const [baseHref] = c.href.split("?");
+    return baseHref !== "/principal/salaries" && (leafActive(pathname, baseHref) || pathname.startsWith(`${baseHref}/`));
+  });
 }
 
 export function SideNav({ role, variant }: { role: ShellRole; variant: "side" | "mobile" }) {
@@ -182,6 +150,28 @@ export function SideNav({ role, variant }: { role: ShellRole; variant: "side" | 
   const allHrefs = useMemo(() => [...flattenHrefs(items), ...EXTRA], [items]);
 
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [hasUnreadAnnouncements, setHasUnreadAnnouncements] = useState(false);
+
+  useEffect(() => {
+    // Check initial local storage state
+    try {
+      const lastRead = localStorage.getItem("sms_announcements_last_read");
+      if (!lastRead && !pathname.includes("/announcements")) {
+        setHasUnreadAnnouncements(true);
+      }
+    } catch {
+      /* ignore */
+    }
+
+    const handler = (e: Event) => {
+      const custom = e as CustomEvent<{ hasUnread: boolean }>;
+      if (typeof custom.detail?.hasUnread === "boolean") {
+        setHasUnreadAnnouncements(custom.detail.hasUnread);
+      }
+    };
+    window.addEventListener("sms_announcement_unread_state", handler);
+    return () => window.removeEventListener("sms_announcement_unread_state", handler);
+  }, [pathname]);
 
   useEffect(() => {
     const next: Record<string, boolean> = {};
@@ -207,15 +197,27 @@ export function SideNav({ role, variant }: { role: ShellRole; variant: "side" | 
 
   const linkClass = (active: boolean) =>
     variant === "side"
-      ? `block rounded-lg px-3 py-2 transition ${active ? "bg-white/15 text-white" : "text-slate-300 hover:bg-white/10 hover:text-white"}`
-      : `shrink-0 rounded-full px-3 py-1 text-xs font-bold ${active ? "bg-brand-navy text-white" : "bg-slate-100 text-slate-700"}`;
+      ? `block rounded-lg px-3 py-2 text-[15px] font-semibold leading-snug transition ${
+          active
+            ? "bg-gradient-to-r from-[#1a8cff] to-[#5dade2] text-white shadow-[0_0_14px_rgba(26,140,255,0.4)]"
+            : "text-slate-200 hover:bg-white/10 hover:text-white"
+        }`
+      : `shrink-0 whitespace-nowrap rounded-full px-3.5 py-1 text-xs font-bold transition shadow-2xs ${
+          active ? "bg-brand-navy text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+        }`;
 
   const childClass = (active: boolean) =>
     variant === "side"
-      ? `block rounded-lg py-1.5 pl-6 pr-3 text-sm transition ${active ? "bg-white/15 text-white" : "text-slate-400 hover:bg-white/10 hover:text-white"}`
-      : `shrink-0 rounded-full px-3 py-1 text-xs font-bold ${active ? "bg-brand-navy text-white" : "bg-slate-100 text-slate-700"}`;
+      ? `block rounded-lg py-1.5 pl-5 pr-2 text-[14px] font-medium transition ${
+          active
+            ? "bg-gradient-to-r from-[#1a8cff]/90 to-[#5dade2]/80 text-white"
+            : "text-slate-300 hover:bg-white/10 hover:text-white"
+        }`
+      : `shrink-0 whitespace-nowrap rounded-full px-3.5 py-1 text-xs font-bold transition shadow-2xs ${
+          active ? "bg-brand-navy text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+        }`;
 
-  const navLink = (href: string, label: string, className: string) => (
+  const navLink = (href: string, label: string, className: string, showRedDot: boolean = false) => (
     <Link
       key={href}
       href={href}
@@ -226,7 +228,15 @@ export function SideNav({ role, variant }: { role: ShellRole; variant: "side" | 
       onClick={() => fullPrefetch(router, href)}
       className={className}
     >
-      {label}
+      <span className="inline-flex items-center justify-between w-full">
+        <span className="truncate">{label}</span>
+        {showRedDot && (
+          <span className="relative flex h-2.5 w-2.5 shrink-0 ml-2" title="New Announcement">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white" />
+          </span>
+        )}
+      </span>
     </Link>
   );
 
@@ -234,16 +244,30 @@ export function SideNav({ role, variant }: { role: ShellRole; variant: "side" | 
     <>
       {items.map((item) => {
         if (!isGroup(item)) {
-          return navLink(item.href, item.label, linkClass(leafActive(pathname, item.href)));
+          const isAnnounce = item.href.includes("announcements") || item.label.toLowerCase().includes("announcement");
+          return navLink(
+            item.href,
+            item.label,
+            linkClass(leafActive(pathname, item.href)),
+            isAnnounce && hasUnreadAnnouncements
+          );
         }
 
         const expanded = open[item.id] ?? groupOpen(pathname, item);
+        const isAnnounceGroup = item.id === "announcements" || item.label.toLowerCase().includes("announcement");
+
         if (variant === "mobile") {
           return (
             <div key={item.id} className="contents">
-              {item.children.map((child) =>
-                navLink(child.href, child.label, linkClass(leafActive(pathname, child.href)))
-              )}
+              {item.children.map((child) => {
+                const isChildAnnounce = isAnnounceGroup && child.href.includes("announcements");
+                return navLink(
+                  child.href,
+                  child.label,
+                  linkClass(leafActive(pathname, child.href)),
+                  isChildAnnounce && hasUnreadAnnouncements
+                );
+              })}
             </div>
           );
         }
@@ -253,19 +277,33 @@ export function SideNav({ role, variant }: { role: ShellRole; variant: "side" | 
             <button
               type="button"
               onClick={() => setOpen((s) => ({ ...s, [item.id]: !expanded }))}
-              className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left transition ${
+              className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[15px] font-semibold transition ${
                 expanded || groupOpen(pathname, item)
                   ? "bg-white/10 text-white"
-                  : "text-slate-300 hover:bg-white/10 hover:text-white"
+                  : "text-slate-200 hover:bg-white/10 hover:text-white"
               }`}
             >
-              <span>{item.label}</span>
+              <span className="inline-flex items-center gap-2">
+                <span>{item.label}</span>
+                {isAnnounceGroup && hasUnreadAnnouncements && (
+                  <span className="relative flex h-2.5 w-2.5 shrink-0" title="New Announcement">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white" />
+                  </span>
+                )}
+              </span>
               <span className="text-[10px] opacity-70">{expanded ? "▾" : "▸"}</span>
             </button>
             {expanded &&
-              item.children.map((child) =>
-                navLink(child.href, child.label, childClass(leafActive(pathname, child.href)))
-              )}
+              item.children.map((child) => {
+                const isChildAnnounce = isAnnounceGroup && child.href.includes("announcements");
+                return navLink(
+                  child.href,
+                  child.label,
+                  childClass(leafActive(pathname, child.href)),
+                  isChildAnnounce && hasUnreadAnnouncements
+                );
+              })}
           </div>
         );
       })}

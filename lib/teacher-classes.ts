@@ -10,7 +10,7 @@ export type TeacherClass = {
   subjectEntries: TeacherSubject[];
 };
 
-/** Classes from principal assignments ∪ timetable slots for this teacher. */
+/** Classes from principal/finance assignments ∪ timetable slots for this teacher. */
 export async function getTeacherClasses(
   supabase: SupabaseClient,
   schoolId: string,
@@ -34,18 +34,23 @@ export async function getTeacherClasses(
   const add = (section: any, subjectId?: string | null, subjectName?: string | null) => {
     if (!section?.id) return;
     const className = section.classes?.name || "Class";
+    const secName = section.name && section.name !== "-" && section.name.toLowerCase() !== "general" ? ` (${section.name})` : "";
+    const label = `${className}${secName}`.trim();
+
     let existing = map.get(section.id);
     if (!existing) {
       existing = {
         sectionId: section.id,
         classId: section.class_id || section.classes?.id || "",
-        label: className,
+        label,
         subjects: [],
         subjectEntries: [],
       };
       map.set(section.id, existing);
     }
-    if (subjectName && !existing.subjects.includes(subjectName)) existing.subjects.push(subjectName);
+    if (subjectName && !existing.subjects.includes(subjectName)) {
+      existing.subjects.push(subjectName);
+    }
     if (subjectId && subjectName && !existing.subjectEntries.some((s) => s.id === subjectId)) {
       existing.subjectEntries.push({ id: subjectId, name: subjectName });
     }
@@ -60,5 +65,8 @@ export async function getTeacherClasses(
     add(s.sections as any, (s as { subject_id?: string }).subject_id || sub?.id, sub?.name);
   }
 
-  return [...map.values()].sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
+  // Only return classes where this teacher actually has assigned subjects!
+  return [...map.values()]
+    .filter((c) => c.subjects.length > 0)
+    .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
 }

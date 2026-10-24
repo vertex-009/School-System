@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  devIndicators: false,
   experimental: {
     // Keep visited pages in client memory so back/switch skips reload
     staleTimes: {

@@ -7,6 +7,7 @@ export type StaffProfile = {
   phone?: string | null;
   cnic?: string | null;
   email?: string | null;
+  joined_on?: string | null;
   is_active?: boolean | null;
   photo_url?: string | null;
   monthly_salary?: number | null;
@@ -29,6 +30,13 @@ function initials(name: string) {
     .join("");
 }
 
+function formatDate(dStr?: string | null) {
+  if (!dStr) return "NA";
+  const d = new Date(dStr);
+  if (Number.isNaN(d.getTime())) return dStr;
+  return d.toLocaleDateString("en-PK", { month: "short", day: "numeric", year: "numeric" });
+}
+
 function Pair({ label, value }: { label: string; value: string }) {
   return (
     <>
@@ -38,13 +46,18 @@ function Pair({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** Same zebra layout as student profile — for finance / teacher staff. */
+/** Original CU Online–style staff profile card: photo left, zebra detail grid right. */
 export function StaffProfileCard({ staff }: { staff: StaffProfile }) {
   const rowBg = ["#eceff1", "#ffffff"] as const;
   const border = "1px solid #cfd8dc";
   const cellPad = "10px 14px";
   const font = "13px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
-  const roleLabel = staff.role === "finance" ? "Finance" : staff.role === "teacher" ? "Teacher" : staff.role;
+  const roleLabel =
+    staff.role === "finance"
+      ? "Finance"
+      : staff.role === "teacher"
+        ? "Teacher"
+        : staff.role;
 
   const rows: { left: { label: string; value: string }; right: { label: string; value: string } }[] = [
     {
@@ -52,29 +65,18 @@ export function StaffProfileCard({ staff }: { staff: StaffProfile }) {
       right: { label: "Role", value: dash(roleLabel) },
     },
     {
-      left: { label: "Phone", value: dash(staff.phone) },
-      right: { label: "CNIC", value: staff.cnic ? formatCnic(staff.cnic) : "NA" },
+      left: { label: "Email / Gmail", value: dash(staff.email) },
+      right: { label: "Phone", value: dash(staff.phone) },
     },
     {
-      left: { label: "Status", value: staff.is_active === false ? "Suspended" : "Active" },
+      left: { label: "CNIC", value: staff.cnic ? formatCnic(staff.cnic) : "NA" },
+      right: { label: "Status", value: staff.is_active === false ? "Suspended" : "Active" },
+    },
+    {
+      left: { label: "Joined Date", value: formatDate(staff.joined_on) },
       right: {
         label: "Monthly salary",
         value: staff.monthly_salary != null && staff.monthly_salary > 0 ? pkr(staff.monthly_salary) : "Not set",
-      },
-    },
-    {
-      left: {
-        label: staff.period_label ? `Salary (${staff.period_label})` : "Salary this month",
-        value: dash(staff.salary_status || "—"),
-      },
-      right: {
-        label: "Paid amount",
-        value:
-          staff.salary_paid_amount != null && staff.salary_paid_amount > 0
-            ? pkr(staff.salary_paid_amount)
-            : staff.salary_status === "Paid"
-              ? "—"
-              : "NA",
       },
     },
   ];
@@ -89,7 +91,7 @@ export function StaffProfileCard({ staff }: { staff: StaffProfile }) {
                 <td
                   rowSpan={rows.length}
                   style={{
-                    width: 130,
+                    width: 140,
                     verticalAlign: "middle",
                     textAlign: "center",
                     background: "#fff",
@@ -100,8 +102,8 @@ export function StaffProfileCard({ staff }: { staff: StaffProfile }) {
                 >
                   <div
                     style={{
-                      width: 110,
-                      height: 130,
+                      width: 115,
+                      height: 135,
                       margin: "0 auto",
                       border: "2px solid #eceff1",
                       background: "#e2e8f0",

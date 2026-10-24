@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { transferClass } from "@/lib/actions";
 import { Shell } from "@/components/shell";
-import { Back, Card, Select, Submit } from "@/components/ui";
+import { Back, Card } from "@/components/ui";
 import { primarySectionIdByClass } from "@/lib/class-label";
 import { getContext } from "@/lib/session";
 import { redirect } from "next/navigation";
+import { ClassTransferForm } from "./class-transfer-form";
 
 export default async function ClassTransferPage({
   searchParams,
@@ -68,17 +68,14 @@ export default async function ClassTransferPage({
   const targetClasses = classOptions.filter((c) => c.id !== activeClassId);
 
   return (
-    <Shell role="finance" title="Transfer">
+    <Shell role="finance" title="Class Transfer & Promotion">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Back href="/finance/students" label="← Back" />
-        <Link href="/finance/students/school-transfer" className="text-xs font-bold text-brand-accent hover:underline">
-          School →
-        </Link>
+        <Back href="/finance/students" label="← Students Directory" />
       </div>
 
       {done === "1" && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-900">
-          Done{count ? ` · ${count}` : ""}
+          Transfer completed successfully{count ? ` · ${count} student(s) promoted` : ""}
         </div>
       )}
 
@@ -104,66 +101,12 @@ export default async function ClassTransferPage({
       </div>
 
       {activeClass && (
-        <>
-          <Card title={activeClass.name}>
-            {students.length > 0 && (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[480px] text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 text-xs text-slate-500">
-                      <th className="py-2 pr-3 font-semibold">Roll</th>
-                      <th className="py-2 pr-3 font-semibold">Name</th>
-                      <th className="py-2 pr-3 font-semibold">Father</th>
-                      <th className="py-2 pr-3 font-semibold">Adm</th>
-                      <th className="py-2" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {students.map((s) => (
-                      <tr key={s.id}>
-                        <td className="py-2.5 pr-3 tabular-nums text-slate-600">{s.roll_no ?? "—"}</td>
-                        <td className="py-2.5 pr-3 font-bold text-brand-navy">{s.name}</td>
-                        <td className="py-2.5 pr-3 text-slate-600">{s.father_name || "—"}</td>
-                        <td className="py-2.5 pr-3 text-slate-600">{s.admission_no}</td>
-                        <td className="py-2.5 text-right">
-                          <Link href={`/finance/students/${s.id}`} className="text-xs font-bold text-brand-accent hover:underline">
-                            View
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
-
-          {students.length > 0 && targetClasses.length > 0 && (
-            <Card title="Transfer">
-              <form
-                action={async (fd) => {
-                  "use server";
-                  const r = await transferClass(fd);
-                  if (r?.error) throw new Error(r.error);
-                }}
-                className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end"
-              >
-                <input type="hidden" name="from_class_id" value={activeClass.id} />
-                <Select label="To" name="to_class_id" required defaultValue={suggestedToId || ""}>
-                  <option value="" disabled>
-                    —
-                  </option>
-                  {targetClasses.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </Select>
-                <Submit>Transfer</Submit>
-              </form>
-            </Card>
-          )}
-        </>
+        <ClassTransferForm
+          students={students}
+          activeClass={activeClass}
+          targetClasses={targetClasses}
+          suggestedToId={suggestedToId}
+        />
       )}
 
       {(recent || []).length > 0 && (
