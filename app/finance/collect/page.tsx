@@ -96,6 +96,11 @@ export default async function CollectFeePage({
     const ids = studentsList.map((s) => s.id);
 
     if (ids.length) {
+      if (!period.isFuture) {
+        const { ensureCurrentMonthInvoices } = await import("@/lib/fee-invoices");
+        await ensureCurrentMonthInvoices(supabase, { month: period.month, year: period.year, dueDay: 10 });
+      }
+
       const { data: invoices } = await supabase
         .from("fee_invoices")
         .select(

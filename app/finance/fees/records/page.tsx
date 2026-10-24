@@ -25,8 +25,22 @@ export default async function FeeRecordsPage({
     .eq("year", period.year)
     .order("created_at", { ascending: false });
 
+  let rawInvoices = invoices;
+  if (!period.isFuture && (!rawInvoices || rawInvoices.length === 0)) {
+    const { ensureCurrentMonthInvoices } = await import("@/lib/fee-invoices");
+    await ensureCurrentMonthInvoices(supabase, { month: period.month, year: period.year, dueDay: 10 });
+    const { data: refetched } = await supabase
+      .from("fee_invoices")
+      .select("id, month, year, amount, discount, discount_reason, paid_amount, status, due_date, students(name, admission_no, created_at, joined_on)")
+      .eq("school_id", schoolId)
+      .eq("month", period.month)
+      .eq("year", period.year)
+      .order("created_at", { ascending: false });
+    if (refetched && refetched.length > 0) rawInvoices = refetched;
+  }
+
   const periodKey = period.year * 12 + period.month;
-  const list = (invoices || []).filter((inv) => {
+  const list = (rawInvoices || []).filter((inv) => {
     if (inv.status === "paid" || Number(inv.paid_amount || 0) > 0) return true;
     const student = inv.students as { created_at?: string; joined_on?: string } | null;
     const joinDate = student?.joined_on || student?.created_at;

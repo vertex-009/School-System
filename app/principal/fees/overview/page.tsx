@@ -3,6 +3,7 @@ import Image from "next/image";
 import { Shell } from "@/components/shell";
 import { NoHistory } from "@/components/period-filter";
 import { ReportPrintButton } from "@/components/report-print-button";
+import { GenerateInvoicesCard } from "@/components/generate-invoices-card";
 import { SCHOOL } from "@/lib/brand";
 import { classNameOf } from "@/lib/class-label";
 import { MONTHS, pkr } from "@/lib/format";
@@ -106,9 +107,25 @@ export default async function FinancialSummaryPage({
 
   const schoolName = "City Public School";
 
+  // Auto-ensure invoices if none exist for this past/current month
+  let rawInvoices = invoices;
+  if (!period.isFuture && (!rawInvoices || rawInvoices.length === 0)) {
+    const { ensureCurrentMonthInvoices } = await import("@/lib/fee-invoices");
+    await ensureCurrentMonthInvoices(supabase, { month: period.month, year: period.year, dueDay: 10 });
+    const { data: refetched } = await supabase
+      .from("fee_invoices")
+      .select("id, amount, discount, paid_amount, status, students(id, name, roll_no, admission_no, created_at, joined_on, sections(name, classes(name)))")
+      .eq("school_id", schoolId)
+      .eq("month", period.month)
+      .eq("year", period.year);
+    if (refetched && refetched.length > 0) {
+      rawInvoices = refetched;
+    }
+  }
+
   // Filter invoices so unpaid records before a student's admission/join date are not counted or shown
   const periodKey = period.year * 12 + period.month;
-  const validInvoices = (invoices || []).filter((inv) => {
+  const validInvoices = (rawInvoices || []).filter((inv) => {
     if (inv.status === "paid" || Number(inv.paid_amount || 0) > 0) return true;
     const st = inv.students as { created_at?: string; joined_on?: string } | null;
     const joinDate = st?.joined_on || st?.created_at;
@@ -119,8 +136,14 @@ export default async function FinancialSummaryPage({
   });
 
   // Fees calculations
-  const billed = validInvoices.reduce((s, i) => s + Number(i.amount) - Number(i.discount || 0), 0);
-  const collected = (payments || []).reduce((s, p) => s + Number(p.amount), 0);
+  const invoiceBilled = validInvoices.reduce((s, i) => s + Number(i.amount) - Number(i.discount || 0), 0);
+  const invoicePaid = validInvoices.reduce((s, i) => s + Number(i.paid_amount || 0), 0);
+  const cashCollected = (payments || []).reduce((s, p) => s + Number(p.amount), 0);
+
+  // Reconcile: If invoiceBilled is 0 (unbilled) but cash was collected,
+  // ensure billed is at least equal to collected so it doesn't show Rs 0 Total Fee while having Paid amount.
+  const billed = Math.max(invoiceBilled, cashCollected);
+  const collected = Math.max(invoicePaid, cashCollected);
   const collectionPct = billed > 0 ? Math.round((collected / billed) * 100) : 0;
   const uncollected = Math.max(billed - collected, 0);
 
@@ -361,26 +384,32 @@ export default async function FinancialSummaryPage({
         </div>
 
         {/* Dynamic Tab Views via FinancialSummaryView (With By-Default Closed Lists) */}
-        {tab === "fees" &&
-          (feesEmpty ? (
-            <NoHistory period={period} what="fee invoices / collections" />
-          ) : (
-            <FinancialSummaryView
-              tab="fees"
-              period={{ month: period.month, year: period.year, label: period.label }}
-              feeBilled={billed}
-              feeCollected={collected}
-              feeUncollected={uncollected}
-              feeInvoices={mappedFeeInvoices}
-              salaryDueSum={salaryDueSum}
-              salaryPaidSum={salaryPaidSum}
-              salaryRows={mappedSalaryRows}
-              expensesTotal={expensesTotal}
-              schoolExpenses={schoolExpenses}
-              otherExpenses={otherExpenses}
-              allExpenses={mappedExpenses}
-            />
-          ))}
+        {tab === "fees" && (
+          <div className="space-y-4">
+            {validInvoices.length === 0 && !period.isFuture && (
+              <GenerateInvoicesCard role="principal" initialMonth={period.month} initialYear={period.year} />
+            )}
+            {feesEmpty && validInvoices.length === 0 ? (
+              <NoHistory period={period} what="fee invoices / collections" />
+            ) : (
+              <FinancialSummaryView
+                tab="fees"
+                period={{ month: period.month, year: period.year, label: period.label }}
+                feeBilled={billed}
+                feeCollected={collected}
+                feeUncollected={uncollected}
+                feeInvoices={mappedFeeInvoices}
+                salaryDueSum={salaryDueSum}
+                salaryPaidSum={salaryPaidSum}
+                salaryRows={mappedSalaryRows}
+                expensesTotal={expensesTotal}
+                schoolExpenses={schoolExpenses}
+                otherExpenses={otherExpenses}
+                allExpenses={mappedExpenses}
+              />
+            )}
+          </div>
+        )}
 
         {tab === "salary" &&
           (salaryEmpty ? (

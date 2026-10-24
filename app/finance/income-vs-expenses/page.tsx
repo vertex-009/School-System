@@ -90,9 +90,23 @@ export default async function FinanceFinancialSummaryPage({
 
   const schoolName = "City Public School";
 
+  let rawInvoices = invoices;
+  if (!period.isFuture && (!rawInvoices || rawInvoices.length === 0)) {
+    const { ensureCurrentMonthInvoices } = await import("@/lib/fee-invoices");
+    await ensureCurrentMonthInvoices(supabase, { month: period.month, year: period.year, dueDay: 10 });
+    const { data: refetched } = await supabase
+      .from("fee_invoices")
+      .select("id, amount, discount, paid_amount, status, students(id, name, roll_no, admission_no, sections(name, classes(name)))")
+      .eq("school_id", schoolId)
+      .eq("month", period.month)
+      .eq("year", period.year);
+    if (refetched && refetched.length > 0) rawInvoices = refetched;
+  }
+
   // Fees calculations
-  const billed = (invoices || []).reduce((s, i) => s + Number(i.amount) - Number(i.discount || 0), 0);
+  const invoiceBilled = (rawInvoices || []).reduce((s, i) => s + Number(i.amount) - Number(i.discount || 0), 0);
   const collected = (payments || []).reduce((s, p) => s + Number(p.amount), 0);
+  const billed = Math.max(invoiceBilled, collected);
   const uncollected = Math.max(billed - collected, 0);
 
   const paymentByInvoice = new Map<string, { id: string; receipt_no: string; paid_at: string }>();

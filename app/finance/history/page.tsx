@@ -38,7 +38,23 @@ export default async function CollectionHistoryPage({
       .maybeSingle(),
   ]);
 
-  const rows = (invoices || []) as unknown as InvoiceRow[];
+  let rawInvoices = invoices;
+  if (!period.isFuture && (!rawInvoices || rawInvoices.length === 0)) {
+    const { ensureCurrentMonthInvoices } = await import("@/lib/fee-invoices");
+    await ensureCurrentMonthInvoices(supabase, { month: period.month, year: period.year, dueDay: 10 });
+    const { data: refetched } = await supabase
+      .from("fee_invoices")
+      .select(
+        "id, student_id, amount, discount, paid_amount, status, month, year, students(id, name, admission_no, roll_no, sections(name, classes(name)))"
+      )
+      .eq("school_id", schoolId)
+      .eq("month", period.month)
+      .eq("year", period.year)
+      .order("created_at", { ascending: false });
+    if (refetched && refetched.length > 0) rawInvoices = refetched;
+  }
+
+  const rows = (rawInvoices || []) as unknown as InvoiceRow[];
 
   const paymentsMap: Record<string, { id: string; paid_at: string }> = {};
   for (const p of payments || []) {

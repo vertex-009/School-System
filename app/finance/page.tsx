@@ -133,6 +133,11 @@ export default async function FinanceHome({
   const { supabase, schoolId, profile } = await getContext();
   if (profile.role !== "finance" || !schoolId) redirect("/");
 
+  if (!period.isFuture) {
+    const { ensureCurrentMonthInvoices } = await import("@/lib/fee-invoices");
+    await ensureCurrentMonthInvoices(supabase, { month: period.month, year: period.year, dueDay: 10 });
+  }
+
   const [{ data, error }, { data: mySalaryRow }, { data: myPaymentRow }] = await Promise.all([
     supabase.rpc("get_finance_dashboard"),
     supabase

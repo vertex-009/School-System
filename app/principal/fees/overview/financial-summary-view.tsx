@@ -167,7 +167,7 @@ export function FinancialSummaryView({
                   {pkr(feeBilled)}
                 </span>
                 <span className="text-xs font-semibold text-slate-300 print:text-slate-700">
-                  {feeInvoices.length} Total
+                  {feeInvoices.length > 0 ? `${feeInvoices.length} Total` : (feeBilled > 0 ? "Recorded" : "0 Total")}
                 </span>
               </div>
             </div>
@@ -202,7 +202,7 @@ export function FinancialSummaryView({
                   {pkr(feeCollected)}
                 </span>
                 <span className="text-xs font-bold text-emerald-800 print:text-slate-700">
-                  {paidFeeInvoices.length} Paid
+                  {paidFeeInvoices.length > 0 ? `${paidFeeInvoices.length} Paid` : (feeCollected > 0 ? "Collected" : "0 Paid")}
                 </span>
               </div>
             </button>

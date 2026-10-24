@@ -74,8 +74,21 @@ async function loadPrincipalDash(
       .lt("expense_date", dayEnd),
   ]);
 
+  let currentInvRows = invRows;
+  if (!currentInvRows || currentInvRows.length === 0) {
+    const { ensureCurrentMonthInvoices } = await import("@/lib/fee-invoices");
+    await ensureCurrentMonthInvoices(supabase, { month, year, dueDay: 10 });
+    const { data: refetched } = await supabase
+      .from("fee_invoices")
+      .select("id, amount, discount, paid_amount, status, students(created_at, joined_on)")
+      .eq("school_id", schoolId)
+      .eq("month", month)
+      .eq("year", year);
+    if (refetched && refetched.length > 0) currentInvRows = refetched;
+  }
+
   const periodKey = year * 12 + month;
-  const validInvRows = (invRows || []).filter((inv) => {
+  const validInvRows = (currentInvRows || []).filter((inv) => {
     if (inv.status === "paid" || Number(inv.paid_amount || 0) > 0) return true;
     const st = inv.students as { created_at?: string; joined_on?: string } | null;
     const joinDate = st?.joined_on || st?.created_at;
@@ -88,10 +101,11 @@ async function loadPrincipalDash(
   const paid = validInvRows.filter((r) => r.status === "paid").length;
   const unpaid = validInvRows.filter((r) => r.status === "unpaid" || r.status === "partial").length;
   const collected = (payRows || []).reduce((s, r) => s + Number(r.amount || 0), 0);
-  const billed = validInvRows.reduce(
+  const invoiceBilled = validInvRows.reduce(
     (s, r) => s + Number(r.amount || 0) - Number(r.discount || 0),
     0
   );
+  const billed = Math.max(invoiceBilled, collected);
   const paid_on_invoices = validInvRows.reduce((s, r) => s + Number(r.paid_amount || 0), 0);
   const expenses = (expRows || []).reduce((s, r) => s + Number(r.amount || 0), 0);
 

@@ -5,10 +5,18 @@ import Link from "next/link";
 import { generateInvoices } from "@/lib/actions";
 import { MONTHS } from "@/lib/format";
 
-export function GenerateInvoicesCard() {
+export function GenerateInvoicesCard({
+  role = "finance",
+  initialMonth,
+  initialYear,
+}: {
+  role?: "principal" | "finance";
+  initialMonth?: number;
+  initialYear?: number;
+} = {}) {
   const now = useMemo(() => new Date(), []);
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(initialMonth ?? now.getMonth() + 1);
+  const [year, setYear] = useState(initialYear ?? now.getFullYear());
   const [state, action, pending] = useActionState(async (_: unknown, fd: FormData) => generateInvoices(fd), null);
 
   const curKey = now.getFullYear() * 12 + (now.getMonth() + 1);
@@ -57,13 +65,21 @@ export function GenerateInvoicesCard() {
         {state?.ok && (
           <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-900">
             {state.created ?? 0} new invoice(s) for {label}.{" "}
-            <Link href={`/finance/collect?month=${month}&year=${year}`} className="underline">
-              Collect cash
-            </Link>
-            {" · "}
-            <Link href={`/finance/fee-records?tab=unpaid&month=${month}&year=${year}`} className="underline">
-              Fee records
-            </Link>
+            {role === "principal" ? (
+              <Link href={`/principal/fees/overview?month=${month}&year=${year}`} className="underline">
+                View fee overview
+              </Link>
+            ) : (
+              <>
+                <Link href={`/finance/collect?month=${month}&year=${year}`} className="underline">
+                  Collect cash
+                </Link>
+                {" · "}
+                <Link href={`/finance/fee-records?tab=unpaid&month=${month}&year=${year}`} className="underline">
+                  Fee records
+                </Link>
+              </>
+            )}
           </div>
         )}
         {state?.error && <p className="mt-3 text-sm font-bold text-rose-600">{state.error}</p>}

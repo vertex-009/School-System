@@ -25,8 +25,23 @@ export default async function UnpaidPage({
     .in("status", ["unpaid", "partial"])
     .order("due_date");
 
+  let rawInvoices = invoices;
+  if (!period.isFuture && (!rawInvoices || rawInvoices.length === 0)) {
+    const { ensureCurrentMonthInvoices } = await import("@/lib/fee-invoices");
+    await ensureCurrentMonthInvoices(supabase, { month: period.month, year: period.year, dueDay: 10 });
+    const { data: refetched } = await supabase
+      .from("fee_invoices")
+      .select("id, month, year, amount, discount, paid_amount, status, due_date, students(name, admission_no, guardian_phone, created_at, joined_on)")
+      .eq("school_id", schoolId)
+      .eq("month", period.month)
+      .eq("year", period.year)
+      .in("status", ["unpaid", "partial"])
+      .order("due_date");
+    if (refetched && refetched.length > 0) rawInvoices = refetched;
+  }
+
   const periodKey = period.year * 12 + period.month;
-  const list = (invoices || []).filter((inv) => {
+  const list = (rawInvoices || []).filter((inv) => {
     const s = inv.students as { created_at?: string; joined_on?: string } | null;
     const joinDate = s?.joined_on || s?.created_at;
     if (!joinDate) return true;
