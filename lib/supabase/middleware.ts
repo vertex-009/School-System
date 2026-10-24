@@ -56,16 +56,30 @@ function applyRoleGuards(request: NextRequest, response: NextResponse) {
   const userActive = request.cookies.get("sms_user_active")?.value !== "0";
   const schoolActive = request.cookies.get("sms_school_active")?.value !== "0";
 
-  if (!role) return response;
+  const isRolePath =
+    path.startsWith("/teacher") ||
+    path.startsWith("/finance") ||
+    path.startsWith("/principal");
+
+  if (!role) {
+    if (isRolePath) return redirectTo(request, "/login", response);
+    return response;
+  }
 
   const staffRoles = ["teacher", "finance", "principal"];
   const blocked = staffRoles.includes(role) && (!userActive || !schoolActive);
   if (blocked && path !== "/suspended") return redirectTo(request, "/suspended", response);
   if (!blocked && path === "/suspended") return redirectTo(request, "/", response);
 
-  if (path.startsWith("/teacher") && role !== "teacher") return redirectTo(request, "/", response);
-  if (path.startsWith("/finance") && role !== "finance") return redirectTo(request, "/", response);
-  if (path.startsWith("/principal") && role !== "principal") return redirectTo(request, "/", response);
+  if (path.startsWith("/teacher") && role !== "teacher") {
+    return redirectTo(request, `/${role}`, response);
+  }
+  if (path.startsWith("/finance") && role !== "finance") {
+    return redirectTo(request, `/${role}`, response);
+  }
+  if (path.startsWith("/principal") && role !== "principal") {
+    return redirectTo(request, `/${role}`, response);
+  }
   // Do NOT block /login so user can always open login in a new tab or switch accounts
   return response;
 }
@@ -84,7 +98,7 @@ export async function updateSession(request: NextRequest) {
     path.startsWith("/auth");
 
   if (!hasSupabaseAuthCookie(request)) {
-    if (isPublic || path === "/") return NextResponse.next({ request });
+    if (isPublic) return NextResponse.next({ request });
     return redirectTo(request, "/login");
   }
 
@@ -121,7 +135,7 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    if (isPublic || path === "/") return supabaseResponse;
+    if (isPublic) return supabaseResponse;
     return redirectTo(request, "/login", supabaseResponse);
   }
 

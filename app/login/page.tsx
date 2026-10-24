@@ -48,14 +48,10 @@ export default function LoginPage() {
       {/* Main Login Card */}
       <div className="relative z-10 w-full max-w-md overflow-hidden rounded-3xl border border-white/[0.1] bg-[#091b33]/90 p-8 shadow-[0_20px_60px_rgba(3,10,20,0.6)] backdrop-blur-xl sm:p-10">
         <div className="mb-6 flex items-center justify-between">
-          <Link
-            href="/"
-            prefetch={true}
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#5dade2] transition hover:text-white"
-          >
-            <span>← Back to overview</span>
-          </Link>
-          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#5dade2]">
+          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-300">
+            Institutional Login
+          </span>
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#5dade2] bg-[#5dade2]/10 px-2.5 py-1 rounded-full border border-[#5dade2]/20">
             Staff Portal
           </span>
         </div>

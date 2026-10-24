@@ -19,18 +19,18 @@ export function Shell({
   children: React.ReactNode;
 }) {
   return (
-    <>
+    <div className="w-full max-w-full min-w-0">
       <PageHeading title={title} actions={headingActions} />
       <div
         className={
           fillViewport
-            ? "flex h-[calc(100dvh-3.25rem)] flex-col gap-2 overflow-hidden p-3 pb-3.5 md:h-[calc(100dvh-3.5rem)] md:gap-2.5 md:p-3.5 md:pb-4 lg:px-5 lg:py-2.5 lg:pb-4"
-            : "space-y-2.5 p-3 md:space-y-3 md:p-4 lg:px-5 lg:py-4"
+            ? "flex min-h-[calc(100dvh-3.25rem)] w-full max-w-full min-w-0 flex-col gap-3 p-3 pb-8 md:min-h-[calc(100dvh-3.5rem)] md:gap-3.5 md:p-4 lg:gap-4 lg:px-5 lg:py-4 lg:pb-8"
+            : "w-full max-w-full min-w-0 space-y-3 p-3 pb-8 md:space-y-3.5 md:p-4 lg:px-5 lg:py-4 lg:pb-8"
         }
       >
         {children}
       </div>
-    </>
+    </div>
   );
 }
 

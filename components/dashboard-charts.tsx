@@ -75,11 +75,11 @@ function StatIcon({ kind }: { kind?: DashStat["icon"] }) {
 /** KPI / quick-link tiles — white cards, icon + text row, corner dot + soft arc */
 export function StatTiles({ items }: { items: DashStat[] }) {
   return (
-    <div className="grid shrink-0 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid w-full max-w-full shrink-0 grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
       {items.map((item) => {
         const tone = item.tone || "navy";
         const inner = (
-          <div className="relative flex h-full min-h-[8.25rem] items-center overflow-hidden rounded-2xl border border-slate-100/90 bg-white px-4 py-5 shadow-[0_2px_10px_rgba(15,23,42,0.05)] transition hover:shadow-[0_4px_16px_rgba(15,23,42,0.08)] sm:min-h-[8.75rem] sm:py-6">
+          <div className="relative flex h-full min-h-[7.5rem] sm:min-h-[8.25rem] items-center overflow-hidden rounded-2xl border border-slate-100/90 bg-white px-3.5 py-4 sm:px-4 sm:py-5 shadow-[0_2px_10px_rgba(15,23,42,0.05)] transition hover:shadow-[0_4px_16px_rgba(15,23,42,0.08)]">
             {/* Soft decorative arc — bottom right */}
             <svg
               aria-hidden
@@ -92,21 +92,21 @@ export function StatTiles({ items }: { items: DashStat[] }) {
 
             <span className={`absolute right-3.5 top-3.5 h-2 w-2 rounded-full ${TONE_DOT[tone]}`} />
 
-            <div className="relative z-[1] flex w-full items-center gap-3.5 pr-3">
+            <div className="relative z-[1] flex w-full min-w-0 items-center gap-3 sm:gap-3.5 pr-2 sm:pr-3">
               <div
-                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${TONE_ICON_WRAP[tone]}`}
+                className={`flex h-11 w-11 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-full ${TONE_ICON_WRAP[tone]}`}
                 aria-hidden
               >
                 <StatIcon kind={item.icon} />
               </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500 sm:text-[11px]">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500 sm:text-[11px]">
                   {item.label}
                 </p>
-                <p className="mt-0.5 truncate text-xl font-bold tracking-tight text-[#0b1f3a] sm:text-2xl">
+                <p className="mt-0.5 truncate text-lg font-bold tracking-tight text-[#0b1f3a] sm:text-xl lg:text-2xl">
                   {item.value}
                 </p>
-                {item.hint && <p className="mt-0.5 text-[11px] text-slate-400">{item.hint}</p>}
+                {item.hint && <p className="mt-0.5 truncate text-[11px] text-slate-400">{item.hint}</p>}
               </div>
             </div>
           </div>

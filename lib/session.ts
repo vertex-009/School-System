@@ -116,7 +116,7 @@ export async function requireRoleCookie(allowed: Role | Role[]) {
   const jar = await cookies();
   const role = jar.get("sms_role")?.value as Role | undefined;
   const list = Array.isArray(allowed) ? allowed : [allowed];
-  if (!role || !list.includes(role)) redirect("/");
+  if (!role || !list.includes(role)) redirect("/login");
   const userActive = jar.get("sms_user_active")?.value !== "0";
   const schoolActive = jar.get("sms_school_active")?.value !== "0";
   if (!userActive || !schoolActive) redirect("/suspended");

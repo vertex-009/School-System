@@ -133,7 +133,6 @@ export default async function PrincipalHome({
     <Shell
       role="principal"
       title="Dashboard"
-      fillViewport
       headingActions={
         <MonthSearch period={period} photoUrl={profile.photo_url} name={profile.name} />
       }
@@ -177,8 +176,8 @@ export default async function PrincipalHome({
         ]}
       />
 
-      <div className="grid min-h-0 max-h-[min(100%,19.5rem)] flex-1 gap-3 overflow-hidden sm:max-h-[min(100%,21rem)] lg:max-h-[min(100%,22.5rem)] lg:grid-cols-3">
-        <section className="relative flex min-h-0 flex-col overflow-hidden rounded-2xl bg-gradient-to-br from-[#0b1f3a] via-[#0d2744] to-[#071528] p-3.5 text-white shadow-[0_2px_14px_rgba(7,21,40,0.25)]">
+      <div className="grid grid-cols-1 gap-3.5 sm:gap-4 lg:grid-cols-3">
+        <section className="relative flex min-h-[17rem] lg:min-h-[18.5rem] flex-col overflow-hidden rounded-2xl bg-gradient-to-br from-[#0b1f3a] via-[#0d2744] to-[#071528] p-4 text-white shadow-[0_2px_14px_rgba(7,21,40,0.25)]">
           {/* Graduation / book watermark */}
           <div className="pointer-events-none absolute bottom-2 left-3 text-sky-300/20" aria-hidden>
             <svg width="88" height="64" viewBox="0 0 88 64" fill="none" stroke="currentColor" strokeWidth="1.4">

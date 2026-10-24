@@ -15,7 +15,7 @@ export function SchoolHeroBanner() {
       <div className="relative h-[10.75rem] w-full overflow-hidden bg-gradient-to-r from-[#cae4fa] via-[#dcedfb] to-[#e8f3fc] sm:h-[11.5rem] md:h-[12.25rem] lg:h-[13rem]">
         {/* Right panel: Real campus photo smoothly feathered from left into the background */}
         <div
-          className="absolute inset-y-0 right-0 z-0 w-[65%] sm:w-[62%] md:w-[60%]"
+          className="absolute inset-y-0 right-0 z-0 w-[65%] opacity-30 sm:opacity-75 md:opacity-100 sm:w-[62%] md:w-[60%]"
           style={{
             WebkitMaskImage:
               "linear-gradient(to right, transparent 0%, rgba(0,0,0,0.12) 16%, rgba(0,0,0,0.55) 36%, rgba(0,0,0,0.92) 54%, #000 68%)",
@@ -100,8 +100,8 @@ export function SchoolHeroBanner() {
         </div>
 
         {/* Left panel: Official circular logo + school title and motto */}
-        <div className="relative z-[2] flex h-full max-w-[55%] items-center gap-3.5 pl-4 pr-2 sm:max-w-[52%] sm:gap-4 sm:pl-5 md:max-w-[48%] md:gap-5 md:pl-6 lg:pl-8">
-          <div className="relative h-[4.5rem] w-[4.5rem] shrink-0 overflow-hidden rounded-full bg-[#0a1f4d] shadow-[0_8px_24px_rgba(12,45,94,0.24)] ring-[3px] ring-white sm:h-[5.25rem] sm:w-[5.25rem] md:h-[6rem] md:w-[6rem] lg:h-[6.75rem] lg:w-[6.75rem]">
+        <div className="relative z-[2] flex h-full max-w-[85%] sm:max-w-[60%] md:max-w-[48%] lg:max-w-[48%] items-center gap-3 pl-3.5 pr-2 sm:gap-4 sm:pl-5 md:gap-5 md:pl-6 lg:pl-8">
+          <div className="relative h-[4.25rem] w-[4.25rem] shrink-0 overflow-hidden rounded-full bg-[#0a1f4d] shadow-[0_8px_24px_rgba(12,45,94,0.24)] ring-[3px] ring-white sm:h-[5.25rem] sm:w-[5.25rem] md:h-[6rem] md:w-[6rem] lg:h-[6.75rem] lg:w-[6.75rem]">
             <Image
               src={`${SCHOOL.logoSrc}?v=6`}
               alt={`${SCHOOL.shortName} logo`}

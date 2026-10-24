@@ -296,18 +296,18 @@ export default async function FinanceHome({
           </span>
           <h2 className="text-sm font-bold text-[#0b1f3a]">Quick actions</h2>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:gap-3 lg:grid-cols-3">
           {ACTIONS.map((a) => (
             <Link
               key={a.href}
               href={a.href}
-              className="group flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-[0_2px_10px_rgba(15,23,42,0.04)] transition hover:border-sky-200 hover:shadow-md"
+              className="group flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3.5 sm:p-4 shadow-[0_2px_10px_rgba(15,23,42,0.04)] transition hover:border-sky-200 hover:shadow-md"
             >
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#e8f2fb] text-[#3b9fd9]">
                 <ActionIcon kind={a.icon} />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-[#0b1f3a]">{a.title}</p>
+                <p className="truncate text-sm font-bold text-[#0b1f3a]">{a.title}</p>
               </div>
               <svg
                 className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:text-[#3b9fd9]"
@@ -324,8 +324,8 @@ export default async function FinanceHome({
         </div>
       </section>
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-3">
-        <section className="flex flex-col rounded-2xl border border-slate-100 bg-white p-4 shadow-[0_2px_12px_rgba(15,23,42,0.05)]">
+      <div className="mt-5 grid grid-cols-1 gap-3.5 sm:gap-4 lg:grid-cols-3">
+        <section className="flex min-h-[17rem] lg:min-h-[18.5rem] flex-col rounded-2xl border border-slate-100 bg-white p-4 shadow-[0_2px_12px_rgba(15,23,42,0.05)]">
           <h2 className="text-sm font-bold text-[#0b1f3a]">Paid invoices</h2>
           <div className="mt-2 flex flex-1 flex-col items-center justify-center gap-4 sm:flex-row sm:items-center sm:justify-around">
             <RingCard percent={paidPct} center={`${paidPct}%`} color="#34d399" />

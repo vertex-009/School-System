@@ -183,15 +183,15 @@ export default async function TeacherHome({
           />
           <div className="absolute inset-0 bg-gradient-to-r from-[#0b1f3a] via-[#0b1f3a]/70 to-transparent" />
         </div>
-        <div className="relative z-[1] flex min-h-[9.5rem] flex-col justify-center gap-4 px-5 py-6 sm:min-h-[10.5rem] sm:px-7 md:flex-row md:items-center md:justify-between md:px-8 lg:min-h-[11.5rem]">
+        <div className="relative z-[1] flex min-h-[9rem] flex-col justify-center gap-3 p-4 sm:min-h-[10rem] sm:p-6 md:flex-row md:items-center md:justify-between md:px-8">
           <div className="max-w-md">
-            <h2 className="text-xl font-bold leading-snug text-white sm:text-2xl">
+            <h2 className="text-lg font-bold leading-snug text-white sm:text-2xl">
               Welcome back, {firstName}
             </h2>
-            <p className="mt-1.5 text-sm text-sky-100/80">Let&apos;s make this week productive.</p>
+            <p className="mt-1 text-xs text-sky-100/80 sm:text-sm">Let&apos;s make this week productive.</p>
           </div>
           <p
-            className="max-w-sm text-sm italic leading-relaxed text-white/85 md:text-right md:text-[15px]"
+            className="max-w-sm text-xs italic leading-relaxed text-white/85 sm:text-sm md:text-right md:text-[15px]"
             style={{ fontFamily: 'Georgia, "Times New Roman", Times, serif' }}
           >
             &ldquo;A good teacher can inspire hope, ignite imagination, and instil a love for learning.&rdquo;
@@ -246,18 +246,18 @@ export default async function TeacherHome({
           </span>
           <h2 className="text-sm font-bold text-[#0b1f3a]">Quick links</h2>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:gap-3 lg:grid-cols-3">
           {QUICK.map((a) => (
             <Link
               key={a.href}
               href={a.href}
-              className="group flex items-center gap-3.5 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs transition hover:border-sky-300 hover:shadow-md"
+              className="group flex items-center gap-3.5 rounded-2xl border border-slate-200/90 bg-white p-3.5 sm:p-4 shadow-xs transition hover:border-sky-300 hover:shadow-md"
             >
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#e8f2fb] text-[#1a8cff] transition group-hover:scale-105">
                 <QuickIcon kind={a.icon} />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-[#0b1f3a] transition group-hover:text-brand-accent">
+                <p className="truncate text-sm font-bold text-[#0b1f3a] transition group-hover:text-brand-accent">
                   {a.title}
                 </p>
               </div>

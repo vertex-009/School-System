@@ -8,7 +8,7 @@ import { AnnouncementSync } from "@/components/announcement-sync";
 
 export function AppChrome({ role, children }: { role: ShellRole; children: React.ReactNode }) {
   return (
-    <div className="min-h-dvh bg-[var(--page-bg)] text-slate-900 print:min-h-0 print:bg-white">
+    <div className="min-h-dvh w-full max-w-full overflow-x-hidden bg-[var(--page-bg)] text-slate-900 print:min-h-0 print:bg-white">
       <AnnouncementSync role={role} />
       <aside className="fixed inset-y-0 left-0 z-20 hidden h-dvh w-[15.5rem] flex-col overflow-hidden bg-[#071528] text-white md:flex print:hidden">
         <div className="shrink-0 border-b border-white/10 px-3 py-3">
@@ -35,8 +35,8 @@ export function AppChrome({ role, children }: { role: ShellRole; children: React
             <button
               className={
                 role === "finance" || role === "teacher"
-                  ? "w-full rounded-xl bg-[#8b1e2d] px-3 py-2.5 text-sm font-bold text-white hover:bg-[#a02638]"
-                  : "w-full rounded-xl bg-gradient-to-r from-[#1a8cff] to-[#5dade2] px-3 py-2.5 text-sm font-bold text-white shadow-[0_0_12px_rgba(26,140,255,0.35)] hover:brightness-110"
+                  ? "w-full rounded-xl bg-[#8b1e2d] px-3 py-2.5 text-sm font-bold text-white hover:bg-[#a02638] cursor-pointer"
+                  : "w-full rounded-xl bg-gradient-to-r from-[#1a8cff] to-[#5dade2] px-3 py-2.5 text-sm font-bold text-white shadow-[0_0_12px_rgba(26,140,255,0.35)] hover:brightness-110 cursor-pointer"
               }
             >
               Logout
@@ -45,8 +45,8 @@ export function AppChrome({ role, children }: { role: ShellRole; children: React
         </div>
       </aside>
 
-      <main className="md:pl-[15.5rem] print:pl-0">
-        <nav className="flex items-center gap-2 overflow-x-auto border-b border-slate-200 bg-white px-3 py-2 md:hidden print:hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+      <main className="w-full max-w-full min-w-0 overflow-x-hidden md:pl-[15.5rem] print:pl-0">
+        <nav className="flex items-center gap-2 overflow-x-auto border-b border-slate-200 bg-white px-3 py-2.5 md:hidden print:hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden touch-pan-x w-full max-w-full shrink-0">
           <span className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full">
             <Image src={SCHOOL.logoSrc} alt="" fill sizes="28px" className="object-cover object-center" />
           </span>
