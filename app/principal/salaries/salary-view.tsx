@@ -809,13 +809,13 @@ export function PrincipalSalaryView({
                 </span>
                 <h3 className="mt-1 text-lg font-black text-brand-navy">{settingPerson.name}</h3>
                 <p className="text-xs text-slate-500 capitalize">
-                  {settingPerson.role} · Changeable Salary Configuration
+                  {settingPerson.role === "finance" ? "Finance Officer" : settingPerson.role}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={closeSetSalaryDialog}
-                className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer"
               >
                 ✕
               </button>
@@ -856,13 +856,6 @@ export function PrincipalSalaryView({
                 </div>
                 <p className="mt-1 text-[11px] text-slate-500">
                   Current recorded salary: <span className="font-bold text-slate-700">{pkr(settingPerson.monthly_salary)}</span> / month
-                </p>
-              </div>
-
-              <div className="rounded-xl bg-slate-50 p-3 text-[11px] text-slate-500 space-y-1">
-                <p className="font-semibold text-slate-700">Salary Policy Notice:</p>
-                <p>
-                  Updating this salary will adjust future disbursements and financial ledger projections for this staff member. You can change this amount at any time.
                 </p>
               </div>
 

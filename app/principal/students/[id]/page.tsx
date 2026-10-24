@@ -2,6 +2,7 @@ import { Shell } from "@/components/shell";
 import { StudentProfileCard } from "@/components/student-profile-card";
 import { StudentFeeRow } from "@/components/student-fee-row";
 import { Back } from "@/components/ui";
+import { setStudentStatus } from "@/lib/actions";
 import { classNameOf } from "@/lib/class-label";
 import { getContext } from "@/lib/session";
 import { redirect } from "next/navigation";
@@ -46,7 +47,46 @@ export default async function StudentViewPage({ params }: { params: Promise<{ id
   return (
     <Shell role="principal" title="Student profile">
       <div className="space-y-4">
-        <Back href="/principal/students" label="← Back to students" />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Back href="/principal/students" label="← Back to students" />
+          <div className="flex flex-wrap items-center gap-2">
+            <form action={setStudentStatus.bind(null, student.id, student.status === "active" ? "left" : "active")}>
+              <button
+                type="submit"
+                className={`rounded-xl px-4 py-2 text-xs font-bold transition shadow-xs cursor-pointer ${
+                  student.status === "active"
+                    ? "border border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100 hover:border-rose-300"
+                    : "bg-emerald-600 text-white hover:bg-emerald-700"
+                }`}
+              >
+                {student.status === "active" ? "Mark as Left School" : "✓ Re-activate Student"}
+              </button>
+            </form>
+          </div>
+        </div>
+
+        {student.status === "left" && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50/80 p-4 text-rose-950">
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-600 text-white font-black text-sm shadow-xs">
+                🚪
+              </span>
+              <div>
+                <p className="text-sm font-bold text-rose-950">Student Marked as Left School</p>
+                <p className="text-xs text-rose-700">This student is currently inactive. You can re-activate them anytime.</p>
+              </div>
+            </div>
+            <form action={setStudentStatus.bind(null, student.id, "active")}>
+              <button
+                type="submit"
+                className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700 active:scale-95 cursor-pointer"
+              >
+                ✓ Re-activate Student
+              </button>
+            </form>
+          </div>
+        )}
+
         <StudentProfileCard
           student={{
             name: student.name,

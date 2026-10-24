@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Shell } from "@/components/shell";
+import { setStudentStatus } from "@/lib/actions";
 import { classNameOf } from "@/lib/class-label";
 import { getContext } from "@/lib/session";
 import { redirect } from "next/navigation";
@@ -109,6 +110,24 @@ export default async function PrincipalStudentsPage({
 
   const activeClass = classOptions.find((c) => c.id === classId);
 
+  // Helper to build filter query string while preserving open directory
+  const buildQuery = (newParams: { q?: string; class?: string; status?: string; view?: string }) => {
+    const params = new URLSearchParams();
+    const merged = {
+      q,
+      class: classId,
+      status,
+      view: view || (!classId && !status ? "all" : undefined),
+      ...newParams,
+    };
+    if (merged.q) params.set("q", merged.q);
+    if (merged.class) params.set("class", merged.class);
+    if (merged.status) params.set("status", merged.status);
+    if (merged.view && !merged.class && !merged.status) params.set("view", merged.view);
+    const qs = params.toString();
+    return qs ? `/principal/students?${qs}` : "/principal/students";
+  };
+
   // Only query detailed student records when the directory is opened
   let list: Array<{
     id: string;
@@ -209,9 +228,9 @@ export default async function PrincipalStudentsPage({
           </div>
         </section>
 
-        {/* Action Boxes (Add Student & Student Directory) */}
+        {/* Action Boxes (Add Student, Student Directory, Class Transfer) */}
         {!isDirectoryOpen ? (
-          <div className="grid gap-4 sm:grid-cols-2 max-w-3xl">
+          <div className="grid gap-4 sm:grid-cols-3 max-w-4xl">
             {/* 1. Add Student */}
             <Link
               href="/principal/students/new"
@@ -265,6 +284,34 @@ export default async function PrincipalStudentsPage({
                 </h3>
               </div>
             </Link>
+
+            {/* 3. Class Transfer / Promotion */}
+            <Link
+              href="/principal/students/transfer"
+              className="group relative flex flex-col justify-between rounded-2xl border border-indigo-200/90 bg-gradient-to-br from-indigo-50/50 via-white to-sky-50/20 p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-indigo-400 hover:shadow-md"
+            >
+              <div className="flex items-center justify-between">
+                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-700 text-white shadow-md shadow-indigo-700/25 transition group-hover:scale-105">
+                  <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="16 3 21 3 21 8" />
+                    <line x1="4" y1="20" x2="21" y2="3" />
+                    <polyline points="21 16 21 21 16 21" />
+                    <line x1="15" y1="15" x2="21" y2="21" />
+                    <line x1="4" y1="4" x2="9" y2="9" />
+                  </svg>
+                </span>
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-indigo-800 transition group-hover:bg-indigo-700 group-hover:text-white">
+                  <svg className="h-4 w-4 transition group-hover:translate-x-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M9 5l7 7-7 7" />
+                  </svg>
+                </span>
+              </div>
+              <div className="mt-4 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-[#0b1f3a] transition group-hover:text-indigo-700">
+                  Class Transfer
+                </h3>
+              </div>
+            </Link>
           </div>
         ) : (
           <div className="max-w-md">
@@ -311,6 +358,7 @@ export default async function PrincipalStudentsPage({
                 ) : (
                   <input type="hidden" name="view" value="all" />
                 )}
+                {status && <input type="hidden" name="status" value={status} />}
 
                 <div className="relative flex-1">
                   <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
@@ -336,7 +384,7 @@ export default async function PrincipalStudentsPage({
 
                 {q && (
                   <Link
-                    href={classId ? `/principal/students?class=${classId}` : "/principal/students?view=all"}
+                    href={buildQuery({ q: "" })}
                     className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-xs shrink-0"
                   >
                     Clear
@@ -374,9 +422,9 @@ export default async function PrincipalStudentsPage({
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5">
                 {/* 1. All Students Button */}
                 <Link
-                  href="/principal/students?view=all"
+                  href={buildQuery({ view: "all", class: "", status: "" })}
                   className={`group relative flex items-center gap-3 rounded-2xl p-3 border transition-all duration-150 cursor-pointer shadow-2xs hover:shadow-sm hover:-translate-y-0.5 ${
-                    view === "all" && !classId
+                    (view === "all" || !classId) && !status
                       ? "bg-gradient-to-br from-[#0b1f3a] via-[#102d54] to-[#1a5276] text-white shadow-md border-transparent ring-2 ring-sky-400"
                       : "bg-slate-900 hover:bg-slate-800 text-white border-slate-800"
                   }`}
@@ -396,14 +444,14 @@ export default async function PrincipalStudentsPage({
 
                 {/* 2. Each Class Colorful Button */}
                 {classOptions.map((c, idx) => {
-                  const isSelected = classId === c.id;
+                  const isSelected = classId === c.id && status !== "left";
                   const palette = CLASS_PALETTES[idx % CLASS_PALETTES.length];
                   const shortBadge = c.name.replace(/^Class\s+/i, "C-").slice(0, 5);
 
                   return (
                     <Link
                       key={c.id}
-                      href={`/principal/students?class=${c.id}`}
+                      href={buildQuery({ class: c.id, view: "" })}
                       className={`group relative flex items-center gap-3 rounded-2xl p-3 border transition-all duration-150 cursor-pointer shadow-2xs hover:shadow-sm hover:-translate-y-0.5 ${
                         isSelected ? palette.active : `${palette.card}`
                       }`}
@@ -434,6 +482,75 @@ export default async function PrincipalStudentsPage({
                     </Link>
                   );
                 })}
+
+                {/* 3. Left School Quick Link Button */}
+                <Link
+                  href={buildQuery({ status: status === "left" ? "" : "left", class: "" })}
+                  className={`group relative flex items-center gap-3 rounded-2xl p-3 border transition-all duration-150 cursor-pointer shadow-2xs hover:shadow-sm hover:-translate-y-0.5 ${
+                    status === "left" && !classId
+                      ? "bg-rose-700 text-white border-rose-700 shadow-md ring-2 ring-rose-400"
+                      : "border-rose-200 bg-rose-50/70 hover:bg-rose-100/80 text-rose-950"
+                  }`}
+                >
+                  <div
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-black text-xs uppercase shadow-xs transition-transform group-hover:scale-105 ${
+                      status === "left" && !classId ? "bg-white/20 text-white" : "bg-rose-600 text-white"
+                    }`}
+                  >
+                    🚪
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span
+                      className={`block truncate text-xs font-black ${
+                        status === "left" && !classId ? "text-white" : "text-rose-950"
+                      }`}
+                    >
+                      Left School
+                    </span>
+                    <span
+                      className={`inline-block mt-0.5 px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                        status === "left" && !classId
+                          ? "bg-white/20 text-white"
+                          : "bg-rose-100 text-rose-800 border border-rose-200/60"
+                      }`}
+                    >
+                      {totalLeft} {totalLeft === 1 ? "student" : "left"}
+                    </span>
+                  </div>
+                </Link>
+              </div>
+
+              {/* Quick Status Filter Buttons */}
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 text-xs">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 shrink-0">
+                  Status:
+                </span>
+                <Link
+                  href={buildQuery({ status: "" })}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-bold shrink-0 transition ${
+                    !status ? "bg-[#0b1f3a] text-white shadow-xs" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  All Statuses ({totalActive + totalLeft})
+                </Link>
+                <Link
+                  href={buildQuery({ status: "active" })}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-bold shrink-0 transition ${
+                    status === "active" ? "bg-emerald-600 text-white shadow-xs" : "bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                  }`}
+                >
+                  Active ({totalActive})
+                </Link>
+                {totalLeft > 0 && (
+                  <Link
+                    href={buildQuery({ status: "left" })}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-bold shrink-0 transition ${
+                      status === "left" ? "bg-rose-600 text-white shadow-xs" : "bg-rose-50 text-rose-800 hover:bg-rose-100"
+                    }`}
+                  >
+                    Left ({totalLeft})
+                  </Link>
+                )}
               </div>
             </section>
             {/* Complete Students Directory Table */}
@@ -441,11 +558,18 @@ export default async function PrincipalStudentsPage({
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
                 <div>
                   <h2 className="text-lg font-bold text-[#0b1f3a]">
-                    {activeClass ? `Students in ${activeClass.name}` : "All Students"}
+                    {status === "left"
+                      ? (activeClass ? `Left Students in ${activeClass.name}` : "Left School Students")
+                      : status === "active"
+                      ? (activeClass ? `Active Students in ${activeClass.name}` : "Active Students")
+                      : activeClass
+                      ? `Students in ${activeClass.name}`
+                      : "All Students"}
                   </h2>
                   <p className="text-xs text-slate-500">
                     {list.length} student{list.length !== 1 ? "s" : ""} found
                     {q.trim() ? ` · Matching “${q.trim()}”` : ""}
+                    {status ? ` · Status: ${status}` : ""}
                   </p>
                 </div>
 
@@ -566,12 +690,27 @@ export default async function PrincipalStudentsPage({
 
                           {/* Actions */}
                           <td className="py-3.5 text-right">
-                            <Link
-                              href={`/principal/students/${s.id}`}
-                              className="inline-flex items-center gap-1 rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-xs transition hover:border-slate-400 hover:bg-slate-50"
-                            >
-                              View Profile →
-                            </Link>
+                            <div className="inline-flex items-center gap-2">
+                              <Link
+                                href={`/principal/students/${s.id}`}
+                                className="inline-flex items-center gap-1 rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-xs transition hover:border-slate-400 hover:bg-slate-50"
+                              >
+                                Profile →
+                              </Link>
+                              <form action={setStudentStatus.bind(null, s.id, s.status === "active" ? "left" : "active")}>
+                                <button
+                                  type="submit"
+                                  className={`rounded-xl px-2.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+                                    s.status === "active"
+                                      ? "text-amber-700 hover:bg-amber-50"
+                                      : "text-emerald-700 hover:bg-emerald-50"
+                                  }`}
+                                  title={s.status === "active" ? "Mark this student as Left School" : "Re-activate this student"}
+                                >
+                                  {s.status === "active" ? "Mark left" : "Mark active"}
+                                </button>
+                              </form>
+                            </div>
                           </td>
                         </tr>
                       ))}

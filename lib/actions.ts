@@ -794,12 +794,14 @@ export async function setStudentStatus(id: string, status: "active" | "left") {
   fail((await ctx.supabase.from("students").update({ status }).eq("id", id)).error);
   revalidatePath("/finance/students");
   revalidatePath("/principal/students");
+  revalidatePath(`/finance/students/${id}`);
+  revalidatePath(`/principal/students/${id}`);
 }
 
-/** Move all active students from one class to another. Finance only. */
+/** Move all active students from one class to another. Finance or Principal. */
 export async function transferClass(formData: FormData) {
   const { primarySectionIdByClass } = await import("@/lib/class-label");
-  const { supabase, schoolId, profile } = await finance();
+  const { supabase, schoolId, profile } = await principalOrFinance();
   const fromClassId = String(formData.get("from_class_id") || "").trim();
   const toClassId = String(formData.get("to_class_id") || "").trim();
   const reason = String(formData.get("reason") || "").trim();
@@ -861,12 +863,16 @@ export async function transferClass(formData: FormData) {
     transferred_by: profile.id,
   }));
   const { error: logErr } = await supabase.from("student_transfers").insert(logs);
+  const transferBasePath = profile.role === "principal" ? "/principal/students/transfer" : "/finance/students/transfer";
+
   if (logErr) {
     const msg = logErr.message || "";
     if (/student_transfers|schema cache|does not exist|transfer_kind/i.test(msg)) {
       revalidatePath("/finance/students");
       revalidatePath("/finance/students/transfer");
-      redirect(`/finance/students/transfer?class=${toClassId}&done=1&count=${list.length}&warn=history`);
+      revalidatePath("/principal/students");
+      revalidatePath("/principal/students/transfer");
+      redirect(`${transferBasePath}?class=${toClassId}&done=1&count=${list.length}&warn=history`);
     }
     return { error: msg };
   }
@@ -874,13 +880,14 @@ export async function transferClass(formData: FormData) {
   revalidatePath("/finance/students");
   revalidatePath("/finance/students/transfer");
   revalidatePath("/principal/students");
-  redirect(`/finance/students/transfer?class=${toClassId}&done=1&count=${list.length}`);
+  revalidatePath("/principal/students/transfer");
+  redirect(`${transferBasePath}?class=${toClassId}&done=1&count=${list.length}`);
 }
 
-/** Transfer one student out to another school (marks left + logs destination). Finance only. */
+/** Transfer one student out to another school (marks left + logs destination). Finance or Principal. */
 export async function transferStudentToSchool(formData: FormData) {
   const { classNameOf } = await import("@/lib/class-label");
-  const { supabase, schoolId, profile } = await finance();
+  const { supabase, schoolId, profile } = await principalOrFinance();
   const studentId = String(formData.get("student_id") || "").trim();
   const toSchoolName = String(formData.get("to_school_name") || "").trim();
   const reason = String(formData.get("reason") || "").trim();
@@ -917,12 +924,16 @@ export async function transferStudentToSchool(formData: FormData) {
     reason: reason || null,
     transferred_by: profile.id,
   });
+  const studentBasePath = profile.role === "principal" ? "/principal/students" : "/finance/students";
+
   if (logErr) {
     const msg = logErr.message || "";
     if (/student_transfers|schema cache|does not exist|transfer_kind|to_school/i.test(msg)) {
       revalidatePath("/finance/students");
+      revalidatePath("/principal/students");
       revalidatePath(`/finance/students/${studentId}`);
-      redirect(`/finance/students/${studentId}?school_done=1&warn=history`);
+      revalidatePath(`/principal/students/${studentId}`);
+      redirect(`${studentBasePath}/${studentId}?school_done=1&warn=history`);
     }
     return { error: msg };
   }
@@ -932,7 +943,9 @@ export async function transferStudentToSchool(formData: FormData) {
   revalidatePath("/finance/students/school-transfer");
   revalidatePath(`/finance/students/${studentId}`);
   revalidatePath("/principal/students");
-  redirect(`/finance/students/${studentId}?school_done=1`);
+  revalidatePath("/principal/students/transfer");
+  revalidatePath(`/principal/students/${studentId}`);
+  redirect(`${studentBasePath}/${studentId}?school_done=1`);
 }
 export type ImportRow = {
   name?: string;
@@ -989,7 +1002,7 @@ function normalizeImportRow(raw: Record<string, unknown>): ImportRow {
 
 async function insertImportRows(sectionId: string, rows: ImportRow[]) {
   const { requireCnic } = await import("@/lib/cnic");
-  const { supabase, schoolId } = await finance();
+  const { supabase, schoolId } = await principalOrFinance();
   let added = 0;
   const skipped: string[] = [];
 
@@ -1034,13 +1047,14 @@ async function insertImportRows(sectionId: string, rows: ImportRow[]) {
   revalidatePath("/finance/collect");
   revalidatePath("/finance/fee-records");
   revalidatePath("/principal/students");
+  revalidatePath("/principal/students/import");
   return { added, skipped };
 }
 
 /** Import one Excel into a ticked class (class chosen in UI, not from file). */
 export async function importStudentsForClass(classId: string, rows: ImportRow[]) {
   const { primarySectionIdByClass } = await import("@/lib/class-label");
-  const { supabase, schoolId } = await finance();
+  const { supabase, schoolId } = await principalOrFinance();
   const id = String(classId || "").trim();
   if (!id) return { added: 0, skipped: ["No class selected"] };
   if (!rows?.length) return { added: 0, skipped: ["File has no data rows"] };
@@ -1069,7 +1083,7 @@ export async function importStudentsForClass(classId: string, rows: ImportRow[])
 /** Legacy: Excel includes class_name column. Prefer importStudentsForClass. */
 export async function importStudents(rows: ImportRow[]) {
   const { primarySectionIdByClass } = await import("@/lib/class-label");
-  const { supabase, schoolId } = await finance();
+  const { supabase, schoolId } = await principalOrFinance();
   const { data: sections } = await supabase
     .from("sections")
     .select("id, name, class_id, classes(name)")
@@ -1110,7 +1124,7 @@ export async function importStudents(rows: ImportRow[]) {
   return { added, skipped };
 }
 export async function addSchoolExpense(formData: FormData) {
-  const { supabase, schoolId, profile } = await finance();
+  const { supabase, schoolId, profile } = await principalOrFinance();
   const kind = String(formData.get("kind") || "school");
   if (kind !== "school" && kind !== "other") return { error: "Invalid expense type" };
   const title = String(formData.get("title") || "").trim();
@@ -1149,7 +1163,7 @@ export async function addSchoolExpense(formData: FormData) {
 }
 
 export async function deleteSchoolExpense(id: string) {
-  const { supabase, schoolId } = await finance();
+  const { supabase, schoolId } = await principalOrFinance();
   fail((await supabase.from("school_expenses").delete().eq("id", id).eq("school_id", schoolId)).error);
   revalidatePath("/finance");
   revalidatePath("/finance/expenses");
@@ -1160,7 +1174,7 @@ export async function deleteSchoolExpense(id: string) {
 }
 
 export async function saveFee(classId: string, monthlyFee: number) {
-  const { supabase, schoolId } = await finance();
+  const { supabase, schoolId } = await principalOrFinance();
   const { data: existing } = await supabase.from("fee_structure").select("id").eq("class_id", classId).maybeSingle();
   const { error } = existing
     ? await supabase.from("fee_structure").update({ monthly_fee: monthlyFee }).eq("id", existing.id)
@@ -1174,9 +1188,11 @@ export async function saveFee(classId: string, monthlyFee: number) {
   revalidatePath("/finance/fee-records");
   revalidatePath("/finance/fees/unpaid");
   revalidatePath("/finance/history");
+  revalidatePath("/principal/fees");
+  revalidatePath("/principal/fees/overview");
 }
 export async function generateInvoices(formData: FormData) {
-  const { supabase } = await finance();
+  const { supabase } = await principalOrFinance();
   const { parsePeriod } = await import("@/lib/period");
   const period = parsePeriod({ month: formData.get("month") as string, year: formData.get("year") as string });
   if (period.isFuture) {
@@ -1196,15 +1212,18 @@ export async function generateInvoices(formData: FormData) {
   revalidatePath("/finance/fee-records");
   revalidatePath("/finance/fees/unpaid");
   revalidatePath("/finance/history");
+  revalidatePath("/principal/fees/overview");
+  revalidatePath("/principal");
   return { ok: true as const, created: (data as { created?: number })?.created ?? 0 };
 }
 export async function saveDiscount(formData: FormData) {
-  const { supabase } = await finance();
+  const { supabase } = await principalOrFinance();
   fail((await supabase.from("fee_invoices").update({ discount: Number(formData.get("discount") || 0), discount_reason: String(formData.get("reason") || "") }).eq("id", String(formData.get("invoice_id")))).error);
   revalidatePath("/finance/fees/records");
+  revalidatePath("/principal/fees/records");
 }
 async function stampPaymentMeta(
-  supabase: Awaited<ReturnType<typeof finance>>["supabase"],
+  supabase: Awaited<ReturnType<typeof principalOrFinance>>["supabase"],
   paymentId: string,
   receivedFrom: string,
   receivedBy: string
@@ -1217,7 +1236,7 @@ async function stampPaymentMeta(
 }
 
 export async function collectFee(formData: FormData) {
-  const { supabase, profile } = await finance();
+  const { supabase, profile } = await principalOrFinance();
   const invoiceId = String(formData.get("invoice_id") || "").trim();
   const amountToCollect = Number(formData.get("amount"));
   const discountVal = formData.get("discount");
@@ -1258,6 +1277,9 @@ export async function collectFee(formData: FormData) {
   revalidatePath("/finance/history");
   revalidatePath("/finance/fees/receipts");
   revalidatePath("/finance/fee-records");
+  revalidatePath("/principal/fees/overview");
+  revalidatePath("/principal/fees/receipts");
+  revalidatePath("/principal");
 
   if (paymentId) {
     const qs = new URLSearchParams();
@@ -1273,7 +1295,7 @@ export async function collectFee(formData: FormData) {
  * Form: student_id, amount, method, received_from, through_month, through_year
  */
 export async function collectFeeWithArrears(formData: FormData) {
-  const { supabase, schoolId, profile } = await finance();
+  const { supabase, schoolId, profile } = await principalOrFinance();
   const studentId = String(formData.get("student_id") || "").trim();
   let remaining = Number(formData.get("amount") || 0);
   const method = String(formData.get("method") || "cash");
@@ -1358,6 +1380,9 @@ export async function collectFeeWithArrears(formData: FormData) {
   revalidatePath("/finance/history");
   revalidatePath("/finance/fees/receipts");
   revalidatePath("/finance/fee-records");
+  revalidatePath("/principal/fees/overview");
+  revalidatePath("/principal/fees/receipts");
+  revalidatePath("/principal");
 
   if (lastPaymentId) {
     const qs = new URLSearchParams();
@@ -1369,9 +1394,11 @@ export async function collectFeeWithArrears(formData: FormData) {
   return { ok: true, receipt: lastReceipt };
 }
 export async function removePayment(id: string) {
-  const { supabase } = await finance();
+  const { supabase } = await principalOrFinance();
   fail((await supabase.rpc("delete_payment", { p_payment_id: id })).error);
   revalidatePath("/finance/fees/receipts");
+  revalidatePath("/principal/fees/receipts");
+  revalidatePath("/principal/fees/overview");
 }
 export async function saveSalary(teacherId: string, monthlySalary: number) {
   const ctx = await getContext();
@@ -1390,6 +1417,19 @@ export async function saveSalary(teacherId: string, monthlySalary: number) {
     if (target?.role === "finance") {
       throw new Error("Finance staff cannot set finance staff salary. Only Principal can set Finance salaries.");
     }
+  }
+
+  // 1. Try security definer RPC first (bypasses RLS safely)
+  const { error: rpcErr } = await supabase.rpc("set_staff_salary", {
+    p_staff_id: teacherId,
+    p_category: "teachers",
+    p_monthly_salary: monthlySalary,
+  });
+
+  if (!rpcErr) {
+    revalidatePath("/finance/salaries");
+    revalidatePath("/principal/salaries");
+    return;
   }
 
   const { data: existing } = await supabase.from("teacher_salaries").select("id").eq("teacher_id", teacherId).maybeSingle();
@@ -1415,13 +1455,38 @@ export async function setStaffSalary(
     return { ok: false, error: "Salary must be 0 or a positive number" };
   }
 
+  // 1. Try security definer RPC first (bypasses RLS safely with elevated DB permissions)
+  const { data: rpcRes, error: rpcErr } = await supabase.rpc("set_staff_salary", {
+    p_staff_id: staffId,
+    p_category: category,
+    p_monthly_salary: monthlySalary,
+  });
+
+  if (!rpcErr) {
+    revalidatePath("/principal/salaries");
+    revalidatePath("/finance/salaries");
+    revalidatePath("/finance/employees");
+    revalidatePath("/principal/faculty");
+    revalidatePath("/principal/other-employees");
+    return { ok: true };
+  }
+
+  // 2. Fallback to direct table operations if RPC function is not yet created in DB
   if (category === "employees") {
     const { error } = await supabase
       .from("other_employees")
       .update({ monthly_salary: monthlySalary })
       .eq("id", staffId)
       .eq("school_id", schoolId);
-    if (error) return { ok: false, error: error.message };
+    if (error) {
+      if (error.message.includes("row-level security") || error.code === "42501") {
+        return {
+          ok: false,
+          error: "Database RLS policy does not allow this role to update salaries yet. Please run migration_principal_set_salaries.sql in Supabase SQL Editor.",
+        };
+      }
+      return { ok: false, error: error.message };
+    }
   } else {
     // teachers or finance
     if (category === "finance" && ctx.profile.role !== "principal") {
@@ -1442,7 +1507,15 @@ export async function setStaffSalary(
       : await supabase
           .from("teacher_salaries")
           .insert({ school_id: schoolId, teacher_id: staffId, monthly_salary: monthlySalary });
-    if (error) return { ok: false, error: error.message };
+    if (error) {
+      if (error.message.includes("row-level security") || error.code === "42501") {
+        return {
+          ok: false,
+          error: "Database RLS policy does not allow Principal to update salary yet. Please run migration_principal_set_salaries.sql in Supabase SQL Editor.",
+        };
+      }
+      return { ok: false, error: error.message };
+    }
   }
 
   revalidatePath("/principal/salaries");
@@ -1702,7 +1775,7 @@ export async function openFeeCollection(formData: FormData) {
   const ctx = await getContext();
   const { supabase, schoolId, readOnly, profile } = ctx;
   if (readOnly || !schoolId) return { error: "Read only" };
-  if (profile.role !== "finance") return { error: "Only Finance can open fee collection" };
+  if (!["finance", "principal"].includes(profile.role)) return { error: "Only Finance or Principal can open fee collection" };
 
   const audiences = formData.getAll("audience").map((v) => String(v).trim()).filter(Boolean);
   const { validateFeeOpenForm, validateFeeOpenPrereqs, isFeeMonthOpened } = await import("@/lib/fee-open");

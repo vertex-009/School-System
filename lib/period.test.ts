@@ -49,3 +49,4 @@ describe("inEnrollmentWindow", () => {
     expect(inEnrollmentWindow(studentJoined, { month: 11, year: 2026 })).toBe(true);
   });
 });
+

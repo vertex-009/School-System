@@ -331,9 +331,9 @@ export default async function FinanceStudentsPage({
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5">
                 {/* 1. All Students Button */}
                 <Link
-                  href="/finance/students?view=all"
+                  href={buildQuery({ view: "all", class: "", status: "" })}
                   className={`group relative flex items-center gap-3 rounded-2xl p-3 border transition-all duration-150 cursor-pointer shadow-2xs hover:shadow-sm hover:-translate-y-0.5 ${
-                    view === "all" && !classId
+                    (view === "all" || !classId) && !status
                       ? "bg-gradient-to-br from-[#0b1f3a] via-[#102d54] to-[#1a5276] text-white shadow-md border-transparent ring-2 ring-sky-400"
                       : "bg-slate-900 hover:bg-slate-800 text-white border-slate-800"
                   }`}
@@ -353,14 +353,14 @@ export default async function FinanceStudentsPage({
 
                 {/* 2. Each Class Colorful Button */}
                 {classOptions.map((c, idx) => {
-                  const isSelected = classId === c.id;
+                  const isSelected = classId === c.id && status !== "left";
                   const palette = CLASS_PALETTES[idx % CLASS_PALETTES.length];
                   const shortBadge = c.name.replace(/^Class\s+/i, "C-").slice(0, 5);
 
                   return (
                     <Link
                       key={c.id}
-                      href={`/finance/students?class=${c.id}`}
+                      href={buildQuery({ class: c.id, view: "" })}
                       className={`group relative flex items-center gap-3 rounded-2xl p-3 border transition-all duration-150 cursor-pointer shadow-2xs hover:shadow-sm hover:-translate-y-0.5 ${
                         isSelected ? palette.active : `${palette.card}`
                       }`}
@@ -391,6 +391,42 @@ export default async function FinanceStudentsPage({
                     </Link>
                   );
                 })}
+
+                {/* 3. Left School Quick Link Button */}
+                <Link
+                  href={buildQuery({ status: status === "left" ? "" : "left", class: "" })}
+                  className={`group relative flex items-center gap-3 rounded-2xl p-3 border transition-all duration-150 cursor-pointer shadow-2xs hover:shadow-sm hover:-translate-y-0.5 ${
+                    status === "left" && !classId
+                      ? "bg-rose-700 text-white border-rose-700 shadow-md ring-2 ring-rose-400"
+                      : "border-rose-200 bg-rose-50/70 hover:bg-rose-100/80 text-rose-950"
+                  }`}
+                >
+                  <div
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-black text-xs uppercase shadow-xs transition-transform group-hover:scale-105 ${
+                      status === "left" && !classId ? "bg-white/20 text-white" : "bg-rose-600 text-white"
+                    }`}
+                  >
+                    🚪
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span
+                      className={`block truncate text-xs font-black ${
+                        status === "left" && !classId ? "text-white" : "text-rose-950"
+                      }`}
+                    >
+                      Left School
+                    </span>
+                    <span
+                      className={`inline-block mt-0.5 px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                        status === "left" && !classId
+                          ? "bg-white/20 text-white"
+                          : "bg-rose-100 text-rose-800 border border-rose-200/60"
+                      }`}
+                    >
+                      {totalLeft} {totalLeft === 1 ? "student" : "left"}
+                    </span>
+                  </div>
+                </Link>
               </div>
             </section>
 
