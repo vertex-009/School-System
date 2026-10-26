@@ -2068,17 +2068,57 @@ export async function deleteAnnouncement(id: string) {
 export async function getLatestAnnouncementInfo() {
   try {
     const ctx = await getContext();
-    if (!ctx.schoolId) return { ok: false, latestAt: null, id: null };
-    const { data } = await ctx.supabase
+    if (!ctx.schoolId || !ctx.profile) return { ok: false, latestAt: null, id: null, userId: null, role: null };
+
+    const role = ctx.profile.role;
+    const myId = ctx.profile.id;
+
+    // Fetch the 30 most recent announcements in this school
+    const { data: list, error } = await ctx.supabase
       .from("announcements")
-      .select("id, created_at, title")
+      .select("id, created_at, title, audience, target_teacher_id, created_by")
       .eq("school_id", ctx.schoolId)
       .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    return { ok: true, latestAt: data?.created_at || null, id: data?.id || null, title: data?.title || null };
+      .limit(30);
+
+    if (error || !list || list.length === 0) {
+      return { ok: true, latestAt: null, id: null, userId: myId, role };
+    }
+
+    // Filter to find the latest announcement targeted to THIS user/role that was NOT created by this user
+    const latestForMe = list.find((item) => {
+      // Don't notify the sender about their own announcement
+      if (item.created_by && item.created_by === myId) return false;
+
+      const aud = item.audience || "all";
+      if (aud === "all") return true;
+
+      if (role === "principal") {
+        return aud === "principal";
+      }
+
+      if (role === "finance") {
+        return aud === "finance";
+      }
+
+      if (role === "teacher") {
+        if (aud === "teachers") return true;
+        if (aud === "teacher" && item.target_teacher_id === myId) return true;
+      }
+
+      return false;
+    });
+
+    return {
+      ok: true,
+      latestAt: latestForMe?.created_at || null,
+      id: latestForMe?.id || null,
+      title: latestForMe?.title || null,
+      userId: myId,
+      role,
+    };
   } catch {
-    return { ok: false, latestAt: null, id: null };
+    return { ok: false, latestAt: null, id: null, userId: null, role: null };
   }
 }
 export async function saveAttendance(rows: { student_id: string; section_id: string; date: string; status: string }[]) {

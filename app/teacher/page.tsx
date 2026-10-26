@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Shell } from "@/components/shell";
 import { MonthSearch } from "@/components/month-search";
 import { StatTiles } from "@/components/dashboard-charts";
+import { AnnouncementDot } from "@/components/announcement-dot";
 import { TimetableGrid } from "@/components/timetable-grid";
 import { SCHOOL } from "@/lib/brand";
 import { pkr } from "@/lib/format";
@@ -248,10 +249,11 @@ export default async function TeacherHome({
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#e8f2fb] text-[#1a8cff] transition group-hover:scale-105">
                 <QuickIcon kind={a.icon} />
               </span>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 flex items-center gap-2">
                 <p className="truncate text-sm font-bold text-[#0b1f3a] transition group-hover:text-brand-accent">
                   {a.title}
                 </p>
+                {a.href.includes("announcements") && <AnnouncementDot />}
               </div>
               <svg
                 className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-brand-accent"

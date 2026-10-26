@@ -22,10 +22,10 @@ export function broadcastNewAnnouncement(title?: string) {
   window.dispatchEvent(new CustomEvent("sms_new_announcement", { detail: payload }));
 }
 
-export function broadcastAnnouncementRead() {
+export function broadcastAnnouncementRead(userId?: string | null, role?: string | null) {
   if (typeof window === "undefined") return;
   const channel = getBroadcastChannel();
-  const payload = { type: "ANNOUNCEMENT_READ", timestamp: Date.now() };
+  const payload = { type: "ANNOUNCEMENT_READ", userId, role, timestamp: Date.now() };
   if (channel) {
     channel.postMessage(payload);
     channel.close();

@@ -164,14 +164,15 @@ export function SideNav({
   const [hasUnreadAnnouncements, setHasUnreadAnnouncements] = useState(false);
 
   useEffect(() => {
-    if (pathname.includes("/announcements")) {
+    const isFeed = pathname.includes("/announcements") && !pathname.includes("/make");
+    if (isFeed) {
       setHasUnreadAnnouncements(false);
     }
 
     const handler = (e: Event) => {
       const custom = e as CustomEvent<{ hasUnread: boolean }>;
       if (typeof custom.detail?.hasUnread === "boolean") {
-        setHasUnreadAnnouncements(pathname.includes("/announcements") ? false : custom.detail.hasUnread);
+        setHasUnreadAnnouncements(isFeed ? false : custom.detail.hasUnread);
       }
     };
     window.addEventListener("sms_announcement_unread_state", handler);

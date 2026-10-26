@@ -6,6 +6,7 @@ import { SchoolHeroBanner } from "@/components/school-hero-banner";
 import { BarChartCard, RingCard, StatTiles } from "@/components/dashboard-charts";
 import { MONTHS, pkr } from "@/lib/format";
 import { parsePeriod } from "@/lib/period";
+import { AnnouncementDot } from "@/components/announcement-dot";
 import { getContext } from "@/lib/session";
 import { redirect } from "next/navigation";
 
@@ -310,8 +311,9 @@ export default async function FinanceHome({
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#e8f2fb] text-[#3b9fd9]">
                 <ActionIcon kind={a.icon} />
               </span>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 flex items-center gap-2">
                 <p className="truncate text-sm font-bold text-[#0b1f3a]">{a.title}</p>
+                {a.href.includes("announcements") && <AnnouncementDot />}
               </div>
               <svg
                 className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:text-[#3b9fd9]"
