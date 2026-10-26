@@ -16,7 +16,7 @@ import {
   ExpenseItem,
 } from "@/app/principal/fees/overview/financial-summary-view";
 
-type Tab = "fees" | "salary" | "expenses";
+type Tab = "monthly" | "fees" | "salary" | "expenses";
 
 export default async function FinanceFinancialSummaryPage({
   searchParams,
@@ -24,7 +24,7 @@ export default async function FinanceFinancialSummaryPage({
   searchParams: Promise<{ tab?: string; month?: string; year?: string }>;
 }) {
   const sp = await searchParams;
-  const tab = (["fees", "salary", "expenses"].includes(sp.tab || "") ? sp.tab : "fees") as Tab;
+  const tab = (["monthly", "fees", "salary", "expenses"].includes(sp.tab || "") ? sp.tab : "monthly") as Tab;
   const period = parsePeriod(sp);
   const { supabase, schoolId, profile } = await getContext();
   if (profile.role !== "finance" || !schoolId) redirect("/");
@@ -160,18 +160,24 @@ export default async function FinanceFinancialSummaryPage({
   const salaryPaidSum = salaryRows.filter((s) => s.paidAmt != null).reduce((s, t) => s + (t.paidAmt || 0), 0);
   const salaryDueSum = salaryRows.reduce((s, t) => s + t.booked, 0);
 
+  const facultySalaries = (salaryPays || []).reduce((s, p) => s + Number(p.amount), 0);
+  const otherStaffSalaries = (otherPays || []).reduce((s, p) => s + Number(p.amount), 0);
+
   const tabs: { id: Tab; label: string }[] = [
+    { id: "monthly", label: "Monthly account" },
     { id: "fees", label: "Fee overview" },
     { id: "salary", label: "Salaries" },
     { id: "expenses", label: "Other Expenses" },
   ];
 
   const tabTitle =
-    tab === "fees"
-      ? "Fee Overview"
-      : tab === "salary"
-        ? "Salaries Report"
-        : "Other Expenses Report";
+    tab === "monthly"
+      ? "Monthly Account"
+      : tab === "fees"
+        ? "Fee Overview"
+        : tab === "salary"
+          ? "Salaries Report"
+          : "Other Expenses Report";
 
   const qs = (t: Tab) => `/finance/income-vs-expenses?tab=${t}&month=${period.month}&year=${period.year}`;
 
@@ -318,6 +324,26 @@ export default async function FinanceFinancialSummaryPage({
         </div>
 
         {/* Dynamic Tab Views via FinancialSummaryView */}
+        {tab === "monthly" && (
+          <FinancialSummaryView
+            tab="monthly"
+            period={{ month: period.month, year: period.year, label: period.label }}
+            feeBilled={billed}
+            feeCollected={collected}
+            feeUncollected={uncollected}
+            feeInvoices={mappedFeeInvoices}
+            salaryDueSum={salaryDueSum}
+            salaryPaidSum={salaryPaidSum}
+            salaryRows={mappedSalaryRows}
+            expensesTotal={expensesTotal}
+            schoolExpenses={schoolExpenses}
+            otherExpenses={otherExpenses}
+            allExpenses={mappedExpenses}
+            facultySalaries={facultySalaries}
+            otherStaffSalaries={otherStaffSalaries}
+          />
+        )}
+
         {tab === "fees" &&
           (feesEmpty ? (
             <NoHistory period={period} what="fee invoices / collections" />
@@ -336,6 +362,8 @@ export default async function FinanceFinancialSummaryPage({
               schoolExpenses={schoolExpenses}
               otherExpenses={otherExpenses}
               allExpenses={mappedExpenses}
+              facultySalaries={facultySalaries}
+              otherStaffSalaries={otherStaffSalaries}
             />
           ))}
 
@@ -357,6 +385,8 @@ export default async function FinanceFinancialSummaryPage({
               schoolExpenses={schoolExpenses}
               otherExpenses={otherExpenses}
               allExpenses={mappedExpenses}
+              facultySalaries={facultySalaries}
+              otherStaffSalaries={otherStaffSalaries}
             />
           ))}
 
@@ -378,6 +408,8 @@ export default async function FinanceFinancialSummaryPage({
               schoolExpenses={schoolExpenses}
               otherExpenses={otherExpenses}
               allExpenses={mappedExpenses}
+              facultySalaries={facultySalaries}
+              otherStaffSalaries={otherStaffSalaries}
             />
           ))}
 

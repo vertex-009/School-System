@@ -187,7 +187,7 @@ export default async function PrincipalHome({
           {
             label: "Expenses",
             value: pkr(expenses),
-            href: "/principal/account",
+            href: "/principal/fees/overview?tab=monthly",
             tone: "amber",
             hint: periodLabel,
             icon: "wallet",
@@ -195,7 +195,7 @@ export default async function PrincipalHome({
           {
             label: "Fee collected",
             value: pkr(collected),
-            href: "/principal/account",
+            href: "/principal/fees/overview?tab=monthly",
             tone: "emerald",
             hint: periodLabel,
             icon: "coins",
