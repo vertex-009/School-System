@@ -17,7 +17,7 @@ import {
   ExpenseItem,
 } from "./financial-summary-view";
 
-type Tab = "monthly" | "fees" | "salary" | "expenses";
+type Tab = "monthly" | "fees" | "salary" | "other-salary" | "expenses";
 
 export default async function FinancialSummaryPage({
   searchParams,
@@ -25,7 +25,18 @@ export default async function FinancialSummaryPage({
   searchParams: Promise<{ tab?: string; month?: string; year?: string }>;
 }) {
   const sp = await searchParams;
-  const tab = (["monthly", "fees", "salary", "expenses"].includes(sp.tab || "") ? sp.tab : "monthly") as Tab;
+  const rawTab = String(sp.tab || "");
+  const tab: Tab =
+    rawTab === "staff-salary" || rawTab === "staff_salary" || rawTab === "salaries" || rawTab === "salary"
+      ? "salary"
+      : rawTab === "other-salary" || rawTab === "other_salary" || rawTab === "other-salaries"
+      ? "other-salary"
+      : rawTab === "fees"
+      ? "fees"
+      : rawTab === "expenses"
+      ? "expenses"
+      : "monthly";
+
   const period = parsePeriod(sp);
   const { supabase, schoolId } = await getContext();
   if (!schoolId) redirect("/");
@@ -69,7 +80,10 @@ export default async function FinancialSummaryPage({
       .eq("school_id", schoolId)
       .in("role", ["teacher", "finance"])
       .order("name"),
-    supabase.from("teacher_salaries").select("teacher_id, monthly_salary").eq("school_id", schoolId),
+    supabase
+      .from("teacher_salaries")
+      .select("teacher_id, monthly_salary")
+      .eq("school_id", schoolId),
     supabase
       .from("salary_payments")
       .select("teacher_id, amount")
@@ -88,8 +102,6 @@ export default async function FinancialSummaryPage({
       .eq("month", period.month)
       .eq("year", period.year),
   ]);
-
-  const schoolName = "City Public School";
 
   // Auto-ensure invoices if none exist for this past/current month
   let rawInvoices = invoices;
@@ -142,6 +154,7 @@ export default async function FinancialSummaryPage({
   type SalaryRow = { id: string; name: string; label: string; booked: number; paidAmt: number | null };
   const portalIn = (staff || []).filter((s) => inEmploymentWindow(s.joined_on, s.left_on, period));
   const otherIn = (otherEmp || []).filter((e) => inEmploymentWindow(e.joined_on, e.left_on, period));
+
   const portalRows: SalaryRow[] = (
     period.isPast ? portalIn.filter((s) => paidSalaryMap[s.id] != null) : period.isCurrent ? portalIn : []
   ).map((s) => ({
@@ -151,6 +164,7 @@ export default async function FinancialSummaryPage({
     booked: salaryMap[s.id] || 0,
     paidAmt: paidSalaryMap[s.id] != null ? paidSalaryMap[s.id]! : null,
   }));
+
   const otherRows: SalaryRow[] = (
     period.isPast ? otherIn.filter((e) => otherPaidMap[e.id] != null) : period.isCurrent ? otherIn : []
   ).map((e) => ({
@@ -160,9 +174,12 @@ export default async function FinancialSummaryPage({
     booked: Number(e.monthly_salary) || 0,
     paidAmt: otherPaidMap[e.id] != null ? otherPaidMap[e.id]! : null,
   }));
-  const salaryRows = [...portalRows, ...otherRows];
-  const salaryPaidSum = salaryRows.filter((s) => s.paidAmt != null).reduce((s, t) => s + (t.paidAmt || 0), 0);
-  const salaryDueSum = salaryRows.reduce((s, t) => s + t.booked, 0);
+
+  const staffSalaryPaidSum = portalRows.filter((s) => s.paidAmt != null).reduce((s, t) => s + (t.paidAmt || 0), 0);
+  const staffSalaryDueSum = portalRows.reduce((s, t) => s + t.booked, 0);
+
+  const otherSalaryPaidSum = otherRows.filter((e) => e.paidAmt != null).reduce((s, t) => s + (t.paidAmt || 0), 0);
+  const otherSalaryDueSum = otherRows.reduce((s, t) => s + t.booked, 0);
 
   const facultySalaries = (salaryPays || []).reduce((s, p) => s + Number(p.amount), 0);
   const otherStaffSalaries = (otherPays || []).reduce((s, p) => s + Number(p.amount), 0);
@@ -170,7 +187,8 @@ export default async function FinancialSummaryPage({
   const tabs: { id: Tab; label: string }[] = [
     { id: "monthly", label: "Monthly account" },
     { id: "fees", label: "Fee overview" },
-    { id: "salary", label: "Salaries" },
+    { id: "salary", label: "Staff salaries" },
+    { id: "other-salary", label: "Other employee salaries" },
     { id: "expenses", label: "Other Expenses" },
   ];
 
@@ -180,14 +198,17 @@ export default async function FinancialSummaryPage({
       : tab === "fees"
         ? "Fee Overview"
         : tab === "salary"
-          ? "Salaries Report"
-          : "Other Expenses Report";
+          ? "Staff Salaries Report"
+          : tab === "other-salary"
+            ? "Other Employee Salaries Report"
+            : "Other Expenses Report";
 
   const qs = (t: Tab) => `/principal/fees/overview?tab=${t}&month=${period.month}&year=${period.year}`;
 
   const feesEmpty = !(rawInvoices || []).length && collected === 0;
   const expensesEmpty = !allExpenses.length;
-  const salaryEmpty = period.isFuture || (!salaryRows.length && (period.isPast || period.isCurrent));
+  const staffSalaryEmpty = period.isFuture || (!portalRows.length && (period.isPast || period.isCurrent));
+  const otherSalaryEmpty = period.isFuture || (!otherRows.length && (period.isPast || period.isCurrent));
 
   const mappedFeeInvoices: FeeInvoiceItem[] = (rawInvoices || []).map((inv) => {
     const student = inv.students as {
@@ -214,12 +235,20 @@ export default async function FinancialSummaryPage({
     };
   });
 
-  const mappedSalaryRows: SalaryItem[] = salaryRows.map((s) => ({
+  const mappedStaffSalaryRows: SalaryItem[] = portalRows.map((s) => ({
     id: s.id,
     name: s.name,
     label: s.label,
     booked: s.booked,
     paidAmt: s.paidAmt,
+  }));
+
+  const mappedOtherSalaryRows: SalaryItem[] = otherRows.map((e) => ({
+    id: e.id,
+    name: e.name,
+    label: e.label,
+    booked: e.booked,
+    paidAmt: e.paidAmt,
   }));
 
   const mappedExpenses: ExpenseItem[] = (allExpenses || []).map((e) => ({
@@ -234,38 +263,26 @@ export default async function FinancialSummaryPage({
   return (
     <Shell role="principal" title="Financial summary">
       <div className="space-y-5 print:space-y-4">
-        {/* Official Print Header (Visible only when printed) */}
+        {/* Official Print Header */}
         <div className="hidden print:block border-b-2 border-slate-900 pb-4 mb-6">
           <div className="flex items-center justify-between gap-4">
             <div className="relative h-18 w-18 shrink-0 overflow-hidden rounded-xl border border-slate-300">
               <Image src={SCHOOL.logoSrc} alt="" fill sizes="72px" className="object-cover object-center" />
             </div>
-            <div className="flex-1 text-center">
-              <h1 className="text-2xl font-black uppercase tracking-tight text-slate-950 font-serif">
-                City Public School
-              </h1>
-              {SCHOOL.motto && (
-                <p className="text-[11px] font-semibold italic text-slate-600 tracking-wide mt-0.5">
-                  &ldquo;{SCHOOL.motto}&rdquo;
-                </p>
-              )}
-              <p className="mt-1 text-xs font-semibold text-slate-700">
+            <div className="text-right">
+              <h1 className="text-xl font-black uppercase tracking-tight text-slate-900">City Public School</h1>
+              <p className="text-xs font-semibold text-slate-600">
                 Abbottabad, KPK, Pakistan
               </p>
-              <div className="mt-2 inline-block rounded-md border border-slate-800 bg-slate-100 px-3 py-0.5 text-[11px] font-black uppercase tracking-widest text-slate-900">
-                Official Financial Summary Report · {tabTitle}
+              <div className="mt-1 inline-block rounded-md bg-slate-100 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-slate-800">
+                Official Financial Statement · {period.label}
               </div>
-            </div>
-            <div className="w-32 shrink-0 text-right text-[11px] text-slate-700 font-mono space-y-1">
-              <div><span className="text-slate-500">Period:</span> <b>{period.label}</b></div>
-              <div><span className="text-slate-500">Date:</span> {new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</div>
             </div>
           </div>
         </div>
 
         {/* Top Control Bar: Compact Period Filter & Print Button */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 print:hidden">
-          {/* Compact Period Selector */}
           <div className="w-fit rounded-2xl border border-slate-200/90 bg-white px-4 py-2.5 shadow-xs">
             <form method="get" className="flex flex-wrap items-center gap-3">
               <input type="hidden" name="tab" value={tab} />
@@ -339,7 +356,7 @@ export default async function FinancialSummaryPage({
           ))}
         </div>
 
-        {/* Dynamic Tab Views via FinancialSummaryView (With By-Default Closed Lists) */}
+        {/* Dynamic Tab Views via FinancialSummaryView */}
         {tab === "monthly" && (
           <FinancialSummaryView
             tab="monthly"
@@ -348,9 +365,12 @@ export default async function FinancialSummaryPage({
             feeCollected={collected}
             feeUncollected={uncollected}
             feeInvoices={mappedFeeInvoices}
-            salaryDueSum={salaryDueSum}
-            salaryPaidSum={salaryPaidSum}
-            salaryRows={mappedSalaryRows}
+            staffSalaryDueSum={staffSalaryDueSum}
+            staffSalaryPaidSum={staffSalaryPaidSum}
+            staffSalaryRows={mappedStaffSalaryRows}
+            otherSalaryDueSum={otherSalaryDueSum}
+            otherSalaryPaidSum={otherSalaryPaidSum}
+            otherSalaryRows={mappedOtherSalaryRows}
             expensesTotal={expensesTotal}
             schoolExpenses={schoolExpenses}
             otherExpenses={otherExpenses}
@@ -375,9 +395,12 @@ export default async function FinancialSummaryPage({
                 feeCollected={collected}
                 feeUncollected={uncollected}
                 feeInvoices={mappedFeeInvoices}
-                salaryDueSum={salaryDueSum}
-                salaryPaidSum={salaryPaidSum}
-                salaryRows={mappedSalaryRows}
+                staffSalaryDueSum={staffSalaryDueSum}
+                staffSalaryPaidSum={staffSalaryPaidSum}
+                staffSalaryRows={mappedStaffSalaryRows}
+                otherSalaryDueSum={otherSalaryDueSum}
+                otherSalaryPaidSum={otherSalaryPaidSum}
+                otherSalaryRows={mappedOtherSalaryRows}
                 expensesTotal={expensesTotal}
                 schoolExpenses={schoolExpenses}
                 otherExpenses={otherExpenses}
@@ -389,9 +412,9 @@ export default async function FinancialSummaryPage({
           </div>
         )}
 
-        {tab === "salary" &&
-          (salaryEmpty ? (
-            <NoHistory period={period} what="salary payments" />
+        {tab === "salary" && (
+          staffSalaryEmpty ? (
+            <NoHistory period={period} what="staff salary payments" />
           ) : (
             <FinancialSummaryView
               tab="salary"
@@ -400,9 +423,12 @@ export default async function FinancialSummaryPage({
               feeCollected={collected}
               feeUncollected={uncollected}
               feeInvoices={mappedFeeInvoices}
-              salaryDueSum={salaryDueSum}
-              salaryPaidSum={salaryPaidSum}
-              salaryRows={mappedSalaryRows}
+              staffSalaryDueSum={staffSalaryDueSum}
+              staffSalaryPaidSum={staffSalaryPaidSum}
+              staffSalaryRows={mappedStaffSalaryRows}
+              otherSalaryDueSum={otherSalaryDueSum}
+              otherSalaryPaidSum={otherSalaryPaidSum}
+              otherSalaryRows={mappedOtherSalaryRows}
               expensesTotal={expensesTotal}
               schoolExpenses={schoolExpenses}
               otherExpenses={otherExpenses}
@@ -410,10 +436,38 @@ export default async function FinancialSummaryPage({
               facultySalaries={facultySalaries}
               otherStaffSalaries={otherStaffSalaries}
             />
-          ))}
+          )
+        )}
 
-        {tab === "expenses" &&
-          (expensesEmpty ? (
+        {tab === "other-salary" && (
+          otherSalaryEmpty ? (
+            <NoHistory period={period} what="other employee salary payments" />
+          ) : (
+            <FinancialSummaryView
+              tab="other-salary"
+              period={{ month: period.month, year: period.year, label: period.label }}
+              feeBilled={billed}
+              feeCollected={collected}
+              feeUncollected={uncollected}
+              feeInvoices={mappedFeeInvoices}
+              staffSalaryDueSum={staffSalaryDueSum}
+              staffSalaryPaidSum={staffSalaryPaidSum}
+              staffSalaryRows={mappedStaffSalaryRows}
+              otherSalaryDueSum={otherSalaryDueSum}
+              otherSalaryPaidSum={otherSalaryPaidSum}
+              otherSalaryRows={mappedOtherSalaryRows}
+              expensesTotal={expensesTotal}
+              schoolExpenses={schoolExpenses}
+              otherExpenses={otherExpenses}
+              allExpenses={mappedExpenses}
+              facultySalaries={facultySalaries}
+              otherStaffSalaries={otherStaffSalaries}
+            />
+          )
+        )}
+
+        {tab === "expenses" && (
+          expensesEmpty ? (
             <NoHistory period={period} what="expenses" />
           ) : (
             <FinancialSummaryView
@@ -423,9 +477,12 @@ export default async function FinancialSummaryPage({
               feeCollected={collected}
               feeUncollected={uncollected}
               feeInvoices={mappedFeeInvoices}
-              salaryDueSum={salaryDueSum}
-              salaryPaidSum={salaryPaidSum}
-              salaryRows={mappedSalaryRows}
+              staffSalaryDueSum={staffSalaryDueSum}
+              staffSalaryPaidSum={staffSalaryPaidSum}
+              staffSalaryRows={mappedStaffSalaryRows}
+              otherSalaryDueSum={otherSalaryDueSum}
+              otherSalaryPaidSum={otherSalaryPaidSum}
+              otherSalaryRows={mappedOtherSalaryRows}
               expensesTotal={expensesTotal}
               schoolExpenses={schoolExpenses}
               otherExpenses={otherExpenses}
@@ -433,7 +490,8 @@ export default async function FinancialSummaryPage({
               facultySalaries={facultySalaries}
               otherStaffSalaries={otherStaffSalaries}
             />
-          ))}
+          )
+        )}
 
         {/* Official Print Footer */}
         <div className="hidden print:block pt-8 text-center text-xs text-slate-600 border-t border-slate-300 mt-8">

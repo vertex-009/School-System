@@ -73,10 +73,18 @@ export function FinancialSummaryView({
   feeCollected,
   feeUncollected,
   feeInvoices,
-  // Salary data
-  salaryDueSum,
-  salaryPaidSum,
-  salaryRows,
+  // Staff Salary data (Faculty / Teachers & Finance)
+  staffSalaryDueSum,
+  staffSalaryPaidSum,
+  staffSalaryRows,
+  // Other Employees Salary data
+  otherSalaryDueSum,
+  otherSalaryPaidSum,
+  otherSalaryRows,
+  // Fallback / legacy salary data
+  salaryDueSum = 0,
+  salaryPaidSum = 0,
+  salaryRows = [],
   // Expense data
   expensesTotal,
   schoolExpenses,
@@ -86,15 +94,21 @@ export function FinancialSummaryView({
   facultySalaries = 0,
   otherStaffSalaries = 0,
 }: {
-  tab: "monthly" | "fees" | "salary" | "expenses";
+  tab: "monthly" | "fees" | "salary" | "other-salary" | "expenses";
   period: { month: number; year: number; label: string };
   feeBilled: number;
   feeCollected: number;
   feeUncollected: number;
   feeInvoices: FeeInvoiceItem[];
-  salaryDueSum: number;
-  salaryPaidSum: number;
-  salaryRows: SalaryItem[];
+  staffSalaryDueSum?: number;
+  staffSalaryPaidSum?: number;
+  staffSalaryRows?: SalaryItem[];
+  otherSalaryDueSum?: number;
+  otherSalaryPaidSum?: number;
+  otherSalaryRows?: SalaryItem[];
+  salaryDueSum?: number;
+  salaryPaidSum?: number;
+  salaryRows?: SalaryItem[];
   expensesTotal: number;
   schoolExpenses: number;
   otherExpenses: number;
@@ -109,9 +123,13 @@ export function FinancialSummaryView({
   const [feeFilter, setFeeFilter] = useState<"all" | "paid" | "unpaid" | null>(null);
   const [feeSearch, setFeeSearch] = useState("");
 
-  // State for Salary Tab: null (closed by default), "all", "paid", or "unpaid"
-  const [salaryFilter, setSalaryFilter] = useState<"all" | "paid" | "unpaid" | null>(null);
-  const [salarySearch, setSalarySearch] = useState("");
+  // State for Staff Salary Tab: null (closed by default), "all", "paid", or "unpaid"
+  const [staffSalaryFilter, setStaffSalaryFilter] = useState<"all" | "paid" | "unpaid" | null>(null);
+  const [staffSalarySearch, setStaffSalarySearch] = useState("");
+
+  // State for Other Employees Salary Tab: null (closed by default), "all", "paid", or "unpaid"
+  const [otherSalaryFilter, setOtherSalaryFilter] = useState<"all" | "paid" | "unpaid" | null>(null);
+  const [otherSalarySearch, setOtherSalarySearch] = useState("");
 
   // State for Expenses Tab: null (closed by default), "all", "school", or "other"
   const [expenseFilter, setExpenseFilter] = useState<"all" | "school" | "other" | null>(null);
@@ -121,8 +139,10 @@ export function FinancialSummaryView({
   useEffect(() => {
     setFeeFilter(null);
     setFeeSearch("");
-    setSalaryFilter(null);
-    setSalarySearch("");
+    setStaffSalaryFilter(null);
+    setStaffSalarySearch("");
+    setOtherSalaryFilter(null);
+    setOtherSalarySearch("");
     setExpenseFilter(null);
     setExpenseSearch("");
   }, [tab, period.month, period.year]);
@@ -145,15 +165,39 @@ export function FinancialSummaryView({
     return true;
   });
 
-  // Derived Salary lists
-  const paidSalaryRows = salaryRows.filter((s) => s.paidAmt != null);
-  const unpaidSalaryRows = salaryRows.filter((s) => s.paidAmt == null);
+  // Effective Staff Salary data (Teachers & Finance)
+  const effectiveStaffRows = staffSalaryRows || salaryRows || [];
+  const effectiveStaffDue = staffSalaryDueSum ?? salaryDueSum ?? 0;
+  const effectiveStaffPaid = staffSalaryPaidSum ?? salaryPaidSum ?? 0;
 
-  const displayedSalaryRows = salaryRows.filter((s) => {
-    if (salaryFilter === "paid" && s.paidAmt == null) return false;
-    if (salaryFilter === "unpaid" && s.paidAmt != null) return false;
-    if (salarySearch.trim()) {
-      const q = salarySearch.toLowerCase().trim();
+  const paidStaffSalaryRows = effectiveStaffRows.filter((s) => s.paidAmt != null);
+  const unpaidStaffSalaryRows = effectiveStaffRows.filter((s) => s.paidAmt == null);
+
+  const displayedStaffSalaryRows = effectiveStaffRows.filter((s) => {
+    if (staffSalaryFilter === "paid" && s.paidAmt == null) return false;
+    if (staffSalaryFilter === "unpaid" && s.paidAmt != null) return false;
+    if (staffSalarySearch.trim()) {
+      const q = staffSalarySearch.toLowerCase().trim();
+      const matchName = s.name.toLowerCase().includes(q);
+      const matchRole = s.label.toLowerCase().includes(q);
+      if (!matchName && !matchRole) return false;
+    }
+    return true;
+  });
+
+  // Effective Other Employee Salary data (Non-teaching staff)
+  const effectiveOtherRows = otherSalaryRows || [];
+  const effectiveOtherDue = otherSalaryDueSum ?? 0;
+  const effectiveOtherPaid = otherSalaryPaidSum ?? 0;
+
+  const paidOtherSalaryRows = effectiveOtherRows.filter((s) => s.paidAmt != null);
+  const unpaidOtherSalaryRows = effectiveOtherRows.filter((s) => s.paidAmt == null);
+
+  const displayedOtherSalaryRows = effectiveOtherRows.filter((s) => {
+    if (otherSalaryFilter === "paid" && s.paidAmt == null) return false;
+    if (otherSalaryFilter === "unpaid" && s.paidAmt != null) return false;
+    if (otherSalarySearch.trim()) {
+      const q = otherSalarySearch.toLowerCase().trim();
       const matchName = s.name.toLowerCase().includes(q);
       const matchRole = s.label.toLowerCase().includes(q);
       if (!matchName && !matchRole) return false;
@@ -916,42 +960,42 @@ export function FinancialSummaryView({
       )}
 
       {/* ============================================================ */}
-      {/* 2. SALARIES TAB (With View / Hide on each card)              */}
+      {/* 2. STAFF SALARIES TAB (With View / Hide on each card)        */}
       {/* ============================================================ */}
       {tab === "salary" && (
         <div className="space-y-4">
-          {/* 3 Stat Cards: Total Salary, Paid Salaries, Unpaid Salaries */}
+          {/* 3 Stat Cards: Total Staff Salary, Paid Staff Salaries, Unpaid Staff Salaries */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-            {/* Card 1: Total Salary (Clickable to view all staff) */}
+            {/* Card 1: Total Staff Salary */}
             <button
               type="button"
-              onClick={() => setSalaryFilter((prev) => (prev === "all" ? null : "all"))}
+              onClick={() => setStaffSalaryFilter((prev) => (prev === "all" ? null : "all"))}
               className={`group relative rounded-2xl border p-5 text-left transition cursor-pointer print:border-slate-800 print:bg-white print:shadow-none select-none ${
-                salaryFilter === "all"
+                staffSalaryFilter === "all"
                   ? "border-[#1a5276] bg-gradient-to-br from-[#0b1f3a] via-[#102d54] to-[#1a5276] text-white shadow-md ring-2 ring-sky-400"
                   : "border-slate-800/40 bg-gradient-to-br from-[#0b1f3a] to-[#1a5276] text-white hover:border-sky-400/80 shadow-xs"
               }`}
-              title={salaryFilter === "all" ? "Click to close list" : "Click to view All Staff Salaries"}
+              title={staffSalaryFilter === "all" ? "Click to close list" : "Click to view All Staff Salaries"}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-200 print:text-slate-800">
-                    Total Salary
+                    Total Staff Salary
                   </span>
                   <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-black text-white">
-                    {salaryRows.length}
+                    {effectiveStaffRows.length}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 print:hidden">
                   <span
                     className={`inline-flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-bold transition ${
-                      salaryFilter === "all"
+                      staffSalaryFilter === "all"
                         ? "bg-white text-[#0b1f3a] shadow-xs"
                         : "bg-white/15 text-white group-hover:bg-white/25"
                     }`}
                   >
-                    <span>{salaryFilter === "all" ? "Hide" : "View"}</span>
-                    <span>{salaryFilter === "all" ? "▴" : "▾"}</span>
+                    <span>{staffSalaryFilter === "all" ? "Hide" : "View"}</span>
+                    <span>{staffSalaryFilter === "all" ? "▴" : "▾"}</span>
                   </span>
                   <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/15 text-white">
                     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -965,48 +1009,48 @@ export function FinancialSummaryView({
               </div>
               <div className="mt-3 flex items-baseline justify-between">
                 <span className="text-2xl sm:text-3xl font-black text-white tabular-nums print:text-black">
-                  {pkr(salaryDueSum)}
+                  {pkr(effectiveStaffDue)}
                 </span>
                 <span className="text-xs font-semibold text-slate-300 print:text-slate-700">
-                  {salaryRows.length} Staff Booked
+                  {effectiveStaffRows.length} Faculty Booked
                 </span>
               </div>
             </button>
 
-            {/* Card 2: Paid Salaries (Clickable to view paid staff) */}
+            {/* Card 2: Paid Staff Salaries */}
             <button
               type="button"
-              onClick={() => setSalaryFilter((prev) => (prev === "paid" ? null : "paid"))}
+              onClick={() => setStaffSalaryFilter((prev) => (prev === "paid" ? null : "paid"))}
               className={`group relative rounded-2xl border p-5 text-left transition cursor-pointer print:border-slate-800 print:bg-white print:shadow-none select-none ${
-                salaryFilter === "paid"
+                staffSalaryFilter === "paid"
                   ? "border-emerald-600 bg-emerald-100/90 ring-2 ring-emerald-500/40 shadow-sm"
                   : "border-emerald-200/90 bg-gradient-to-br from-emerald-50/80 via-white to-emerald-50/30 hover:border-emerald-400 shadow-xs"
               }`}
-              title={salaryFilter === "paid" ? "Click to close list" : "Click to view Paid Salaries"}
+              title={staffSalaryFilter === "paid" ? "Click to close list" : "Click to view Paid Staff Salaries"}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 print:text-slate-900">
-                    Paid Salaries
+                    Paid Staff Salaries
                   </span>
                   <span className="rounded-full bg-emerald-100 border border-emerald-200/80 px-2 py-0.5 text-[11px] font-black text-emerald-800">
-                    {paidSalaryRows.length}
+                    {paidStaffSalaryRows.length}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 print:hidden">
                   <span
                     className={`inline-flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-bold transition ${
-                      salaryFilter === "paid"
+                      staffSalaryFilter === "paid"
                         ? "bg-emerald-600 text-white shadow-xs"
                         : "bg-emerald-100 text-emerald-800 group-hover:bg-emerald-200"
                     }`}
                   >
-                    <span>{salaryFilter === "paid" ? "Hide" : "View"}</span>
-                    <span>{salaryFilter === "paid" ? "▴" : "▾"}</span>
+                    <span>{staffSalaryFilter === "paid" ? "Hide" : "View"}</span>
+                    <span>{staffSalaryFilter === "paid" ? "▴" : "▾"}</span>
                   </span>
                   <span
                     className={`flex h-8 w-8 items-center justify-center rounded-xl transition ${
-                      salaryFilter === "paid" ? "bg-emerald-600 text-white" : "bg-emerald-100 text-emerald-700"
+                      staffSalaryFilter === "paid" ? "bg-emerald-600 text-white" : "bg-emerald-100 text-emerald-700"
                     }`}
                   >
                     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -1017,48 +1061,48 @@ export function FinancialSummaryView({
               </div>
               <div className="mt-3 flex items-baseline justify-between">
                 <span className="text-2xl sm:text-3xl font-black text-emerald-700 tabular-nums print:text-black">
-                  {pkr(salaryPaidSum)}
+                  {pkr(effectiveStaffPaid)}
                 </span>
                 <span className="text-xs font-bold text-emerald-800 print:text-slate-700">
-                  {paidSalaryRows.length} Paid
+                  {paidStaffSalaryRows.length} Paid
                 </span>
               </div>
             </button>
 
-            {/* Card 3: Unpaid Salaries (Clickable to view unpaid staff) */}
+            {/* Card 3: Unpaid Staff Salaries */}
             <button
               type="button"
-              onClick={() => setSalaryFilter((prev) => (prev === "unpaid" ? null : "unpaid"))}
+              onClick={() => setStaffSalaryFilter((prev) => (prev === "unpaid" ? null : "unpaid"))}
               className={`group relative rounded-2xl border p-5 text-left transition cursor-pointer print:border-slate-800 print:bg-white print:shadow-none select-none ${
-                salaryFilter === "unpaid"
+                staffSalaryFilter === "unpaid"
                   ? "border-amber-600 bg-amber-100/90 ring-2 ring-amber-500/40 shadow-sm"
                   : "border-amber-200/90 bg-gradient-to-br from-amber-50/80 via-white to-amber-50/30 hover:border-amber-400 shadow-xs"
               }`}
-              title={salaryFilter === "unpaid" ? "Click to close list" : "Click to view Unpaid Salaries"}
+              title={staffSalaryFilter === "unpaid" ? "Click to close list" : "Click to view Unpaid Staff Salaries"}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold uppercase tracking-wider text-amber-800 print:text-slate-900">
-                    Unpaid Salaries
+                    Unpaid Staff Salaries
                   </span>
                   <span className="rounded-full bg-amber-100 border border-amber-200/80 px-2 py-0.5 text-[11px] font-black text-amber-800">
-                    {unpaidSalaryRows.length}
+                    {unpaidStaffSalaryRows.length}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 print:hidden">
                   <span
                     className={`inline-flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-bold transition ${
-                      salaryFilter === "unpaid"
+                      staffSalaryFilter === "unpaid"
                         ? "bg-amber-600 text-white shadow-xs"
                         : "bg-amber-100 text-amber-800 group-hover:bg-amber-200"
                     }`}
                   >
-                    <span>{salaryFilter === "unpaid" ? "Hide" : "View"}</span>
-                    <span>{salaryFilter === "unpaid" ? "▴" : "▾"}</span>
+                    <span>{staffSalaryFilter === "unpaid" ? "Hide" : "View"}</span>
+                    <span>{staffSalaryFilter === "unpaid" ? "▴" : "▾"}</span>
                   </span>
                   <span
                     className={`flex h-8 w-8 items-center justify-center rounded-xl transition ${
-                      salaryFilter === "unpaid" ? "bg-amber-600 text-white" : "bg-amber-100 text-amber-700"
+                      staffSalaryFilter === "unpaid" ? "bg-amber-600 text-white" : "bg-amber-100 text-amber-700"
                     }`}
                   >
                     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1070,17 +1114,17 @@ export function FinancialSummaryView({
               </div>
               <div className="mt-3 flex items-baseline justify-between">
                 <span className="text-2xl sm:text-3xl font-black text-amber-800 tabular-nums print:text-black">
-                  {pkr(Math.max(salaryDueSum - salaryPaidSum, 0))}
+                  {pkr(Math.max(effectiveStaffDue - effectiveStaffPaid, 0))}
                 </span>
                 <span className="text-xs font-bold text-amber-800 print:text-slate-700">
-                  {unpaidSalaryRows.length} Pending
+                  {unpaidStaffSalaryRows.length} Pending
                 </span>
               </div>
             </button>
           </div>
 
-          {/* Print-only summary overview when no individual list is clicked */}
-          {salaryFilter === null && (
+          {/* Print-only summary overview */}
+          {staffSalaryFilter === null && (
             <div className="hidden print:block rounded-xl border border-slate-800 p-4 mt-4">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 mb-2.5">
                 Financial Summary · Staff Salaries Overview ({period.label})
@@ -1095,19 +1139,19 @@ export function FinancialSummaryView({
                 </thead>
                 <tbody className="divide-y divide-slate-200">
                   <tr>
-                    <td className="p-2 font-bold border-r border-slate-200">Total Booked Salaries</td>
-                    <td className="p-2 text-center border-r border-slate-200">{salaryRows.length}</td>
-                    <td className="p-2 text-right font-bold">{pkr(salaryDueSum)}</td>
+                    <td className="p-2 font-bold border-r border-slate-200">Total Booked Staff Salaries</td>
+                    <td className="p-2 text-center border-r border-slate-200">{effectiveStaffRows.length}</td>
+                    <td className="p-2 text-right font-bold">{pkr(effectiveStaffDue)}</td>
                   </tr>
                   <tr>
-                    <td className="p-2 font-bold border-r border-slate-200 text-emerald-800">Total Salaries Paid</td>
-                    <td className="p-2 text-center border-r border-slate-200">{paidSalaryRows.length}</td>
-                    <td className="p-2 text-right font-bold text-emerald-800">{pkr(salaryPaidSum)}</td>
+                    <td className="p-2 font-bold border-r border-slate-200 text-emerald-800">Total Staff Salaries Paid</td>
+                    <td className="p-2 text-center border-r border-slate-200">{paidStaffSalaryRows.length}</td>
+                    <td className="p-2 text-right font-bold text-emerald-800">{pkr(effectiveStaffPaid)}</td>
                   </tr>
                   <tr>
-                    <td className="p-2 font-bold border-r border-slate-200 text-amber-800">Total Salaries Pending / Unpaid</td>
-                    <td className="p-2 text-center border-r border-slate-200">{unpaidSalaryRows.length}</td>
-                    <td className="p-2 text-right font-bold text-amber-800">{pkr(Math.max(salaryDueSum - salaryPaidSum, 0))}</td>
+                    <td className="p-2 font-bold border-r border-slate-200 text-amber-800">Total Staff Salaries Pending / Unpaid</td>
+                    <td className="p-2 text-center border-r border-slate-200">{unpaidStaffSalaryRows.length}</td>
+                    <td className="p-2 text-right font-bold text-amber-800">{pkr(Math.max(effectiveStaffDue - effectiveStaffPaid, 0))}</td>
                   </tr>
                 </tbody>
               </table>
@@ -1115,19 +1159,19 @@ export function FinancialSummaryView({
           )}
 
           {/* Directory Table - ONLY displayed when user clicks a card */}
-          {salaryFilter !== null && (
+          {staffSalaryFilter !== null && (
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs animate-fadeIn">
               <div className="border-b border-slate-100 bg-slate-50/70 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
                 <span
                   className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ${
-                    salaryFilter === "paid"
+                    staffSalaryFilter === "paid"
                       ? "bg-emerald-100 text-emerald-800"
-                      : salaryFilter === "unpaid"
+                      : staffSalaryFilter === "unpaid"
                       ? "bg-amber-100 text-amber-800"
                       : "bg-slate-100 text-slate-800"
                   }`}
                 >
-                  {salaryFilter === "paid" ? "Paid Salaries" : salaryFilter === "unpaid" ? "Unpaid Salaries" : "All Salaries"} ({displayedSalaryRows.length})
+                  {staffSalaryFilter === "paid" ? "Paid Staff Salaries" : staffSalaryFilter === "unpaid" ? "Unpaid Staff Salaries" : "All Staff Salaries"} ({displayedStaffSalaryRows.length})
                 </span>
 
                 <div className="flex items-center gap-2.5 print:hidden">
@@ -1135,14 +1179,14 @@ export function FinancialSummaryView({
                     <input
                       type="text"
                       placeholder="Search staff by name/role…"
-                      value={salarySearch}
-                      onChange={(e) => setSalarySearch(e.target.value)}
+                      value={staffSalarySearch}
+                      onChange={(e) => setStaffSalarySearch(e.target.value)}
                       className="w-44 sm:w-56 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-800 placeholder:text-slate-400 outline-none focus:border-brand-navy focus:ring-1 focus:ring-brand-navy transition"
                     />
-                    {salarySearch && (
+                    {staffSalarySearch && (
                       <button
                         type="button"
-                        onClick={() => setSalarySearch("")}
+                        onClick={() => setStaffSalarySearch("")}
                         className="absolute right-2 top-1 text-slate-400 hover:text-slate-600 text-xs"
                         title="Clear search"
                       >
@@ -1153,7 +1197,7 @@ export function FinancialSummaryView({
 
                   <button
                     type="button"
-                    onClick={() => setSalaryFilter(null)}
+                    onClick={() => setStaffSalaryFilter(null)}
                     className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition cursor-pointer"
                     title="Close list"
                   >
@@ -1163,9 +1207,9 @@ export function FinancialSummaryView({
                 </div>
               </div>
 
-              {displayedSalaryRows.length === 0 ? (
+              {displayedStaffSalaryRows.length === 0 ? (
                 <div className="p-10 text-center text-xs text-slate-500">
-                  <p className="font-bold text-slate-600">No record found</p>
+                  <p className="font-bold text-slate-600">No staff record found</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto [scrollbar-width:thin]">
@@ -1173,13 +1217,306 @@ export function FinancialSummaryView({
                     <thead className="border-b border-slate-100 text-[11px] font-bold uppercase tracking-wider text-slate-400">
                       <tr>
                         <th className="py-3 pl-5 pr-4">Staff Member</th>
-                        <th className="py-3 pr-4">Role / Job</th>
+                        <th className="py-3 pr-4">Role</th>
                         <th className="py-3 pr-4">Monthly Salary</th>
                         <th className="py-3 pr-5 text-right">Payment Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium">
-                      {displayedSalaryRows.map((s) => (
+                      {displayedStaffSalaryRows.map((s) => (
+                        <tr key={s.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-3 pl-5 pr-4 font-bold text-[#0b1f3a]">{s.name}</td>
+                          <td className="py-3 pr-4 text-xs font-semibold text-slate-500">{s.label}</td>
+                          <td className="py-3 pr-4 tabular-nums font-semibold text-slate-700">{pkr(s.booked)}</td>
+                          <td className="py-3 pr-5 text-right">
+                            {s.paidAmt != null ? (
+                              <span className="inline-flex items-center gap-1.5 font-bold text-emerald-700">
+                                <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
+                                Paid
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 font-bold text-amber-600">
+                                <span className="h-2 w-2 rounded-full bg-amber-500"></span>
+                                Unpaid
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* 3. OTHER EMPLOYEE SALARIES TAB (With View / Hide on each card)*/}
+      {/* ============================================================ */}
+      {tab === "other-salary" && (
+        <div className="space-y-4">
+          {/* 3 Stat Cards: Total Other Salary, Paid Other Salary, Unpaid Other Salary */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+            {/* Card 1: Total Other Employees Salary */}
+            <button
+              type="button"
+              onClick={() => setOtherSalaryFilter((prev) => (prev === "all" ? null : "all"))}
+              className={`group relative rounded-2xl border p-5 text-left transition cursor-pointer print:border-slate-800 print:bg-white print:shadow-none select-none ${
+                otherSalaryFilter === "all"
+                  ? "border-[#1a5276] bg-gradient-to-br from-[#0b1f3a] via-[#102d54] to-[#1a5276] text-white shadow-md ring-2 ring-sky-400"
+                  : "border-slate-800/40 bg-gradient-to-br from-[#0b1f3a] to-[#1a5276] text-white hover:border-sky-400/80 shadow-xs"
+              }`}
+              title={otherSalaryFilter === "all" ? "Click to close list" : "Click to view All Other Employees Salaries"}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-200 print:text-slate-800">
+                    Total Other Employees Salary
+                  </span>
+                  <span className="rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-black text-white">
+                    {effectiveOtherRows.length}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 print:hidden">
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-bold transition ${
+                      otherSalaryFilter === "all"
+                        ? "bg-white text-[#0b1f3a] shadow-xs"
+                        : "bg-white/15 text-white group-hover:bg-white/25"
+                    }`}
+                  >
+                    <span>{otherSalaryFilter === "all" ? "Hide" : "View"}</span>
+                    <span>{otherSalaryFilter === "all" ? "▴" : "▾"}</span>
+                  </span>
+                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/15 text-white">
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                      <line x1="16" y1="2" x2="16" y2="6" />
+                      <line x1="8" y1="2" x2="8" y2="6" />
+                      <line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                  </span>
+                </div>
+              </div>
+              <div className="mt-3 flex items-baseline justify-between">
+                <span className="text-2xl sm:text-3xl font-black text-white tabular-nums print:text-black">
+                  {pkr(effectiveOtherDue)}
+                </span>
+                <span className="text-xs font-semibold text-slate-300 print:text-slate-700">
+                  {effectiveOtherRows.length} Staff Booked
+                </span>
+              </div>
+            </button>
+
+            {/* Card 2: Paid Other Salaries */}
+            <button
+              type="button"
+              onClick={() => setOtherSalaryFilter((prev) => (prev === "paid" ? null : "paid"))}
+              className={`group relative rounded-2xl border p-5 text-left transition cursor-pointer print:border-slate-800 print:bg-white print:shadow-none select-none ${
+                otherSalaryFilter === "paid"
+                  ? "border-emerald-600 bg-emerald-100/90 ring-2 ring-emerald-500/40 shadow-sm"
+                  : "border-emerald-200/90 bg-gradient-to-br from-emerald-50/80 via-white to-emerald-50/30 hover:border-emerald-400 shadow-xs"
+              }`}
+              title={otherSalaryFilter === "paid" ? "Click to close list" : "Click to view Paid Other Salaries"}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 print:text-slate-900">
+                    Paid Salaries
+                  </span>
+                  <span className="rounded-full bg-emerald-100 border border-emerald-200/80 px-2 py-0.5 text-[11px] font-black text-emerald-800">
+                    {paidOtherSalaryRows.length}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 print:hidden">
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-bold transition ${
+                      otherSalaryFilter === "paid"
+                        ? "bg-emerald-600 text-white shadow-xs"
+                        : "bg-emerald-100 text-emerald-800 group-hover:bg-emerald-200"
+                    }`}
+                  >
+                    <span>{otherSalaryFilter === "paid" ? "Hide" : "View"}</span>
+                    <span>{otherSalaryFilter === "paid" ? "▴" : "▾"}</span>
+                  </span>
+                  <span
+                    className={`flex h-8 w-8 items-center justify-center rounded-xl transition ${
+                      otherSalaryFilter === "paid" ? "bg-emerald-600 text-white" : "bg-emerald-100 text-emerald-700"
+                    }`}
+                  >
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </span>
+                </div>
+              </div>
+              <div className="mt-3 flex items-baseline justify-between">
+                <span className="text-2xl sm:text-3xl font-black text-emerald-700 tabular-nums print:text-black">
+                  {pkr(effectiveOtherPaid)}
+                </span>
+                <span className="text-xs font-bold text-emerald-800 print:text-slate-700">
+                  {paidOtherSalaryRows.length} Paid
+                </span>
+              </div>
+            </button>
+
+            {/* Card 3: Unpaid Other Salaries */}
+            <button
+              type="button"
+              onClick={() => setOtherSalaryFilter((prev) => (prev === "unpaid" ? null : "unpaid"))}
+              className={`group relative rounded-2xl border p-5 text-left transition cursor-pointer print:border-slate-800 print:bg-white print:shadow-none select-none ${
+                otherSalaryFilter === "unpaid"
+                  ? "border-amber-600 bg-amber-100/90 ring-2 ring-amber-500/40 shadow-sm"
+                  : "border-amber-200/90 bg-gradient-to-br from-amber-50/80 via-white to-amber-50/30 hover:border-amber-400 shadow-xs"
+              }`}
+              title={otherSalaryFilter === "unpaid" ? "Click to close list" : "Click to view Unpaid Other Salaries"}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-amber-800 print:text-slate-900">
+                    Unpaid Salaries
+                  </span>
+                  <span className="rounded-full bg-amber-100 border border-amber-200/80 px-2 py-0.5 text-[11px] font-black text-amber-800">
+                    {unpaidOtherSalaryRows.length}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 print:hidden">
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-bold transition ${
+                      otherSalaryFilter === "unpaid"
+                        ? "bg-amber-600 text-white shadow-xs"
+                        : "bg-amber-100 text-amber-800 group-hover:bg-amber-200"
+                    }`}
+                  >
+                    <span>{otherSalaryFilter === "unpaid" ? "Hide" : "View"}</span>
+                    <span>{otherSalaryFilter === "unpaid" ? "▴" : "▾"}</span>
+                  </span>
+                  <span
+                    className={`flex h-8 w-8 items-center justify-center rounded-xl transition ${
+                      otherSalaryFilter === "unpaid" ? "bg-amber-600 text-white" : "bg-amber-100 text-amber-700"
+                    }`}
+                  >
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                    </svg>
+                  </span>
+                </div>
+              </div>
+              <div className="mt-3 flex items-baseline justify-between">
+                <span className="text-2xl sm:text-3xl font-black text-amber-800 tabular-nums print:text-black">
+                  {pkr(Math.max(effectiveOtherDue - effectiveOtherPaid, 0))}
+                </span>
+                <span className="text-xs font-bold text-amber-800 print:text-slate-700">
+                  {unpaidOtherSalaryRows.length} Pending
+                </span>
+              </div>
+            </button>
+          </div>
+
+          {/* Print-only summary overview */}
+          {otherSalaryFilter === null && (
+            <div className="hidden print:block rounded-xl border border-slate-800 p-4 mt-4">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 mb-2.5">
+                Financial Summary · Other Employee Salaries Overview ({period.label})
+              </h3>
+              <table className="w-full text-left text-xs border border-slate-300">
+                <thead className="bg-slate-100 font-bold border-b border-slate-300">
+                  <tr>
+                    <th className="p-2 border-r border-slate-300">Description</th>
+                    <th className="p-2 text-center border-r border-slate-300">Staff Count</th>
+                    <th className="p-2 text-right">Total Amount (PKR)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  <tr>
+                    <td className="p-2 font-bold border-r border-slate-200">Total Booked Other Salaries</td>
+                    <td className="p-2 text-center border-r border-slate-200">{effectiveOtherRows.length}</td>
+                    <td className="p-2 text-right font-bold">{pkr(effectiveOtherDue)}</td>
+                  </tr>
+                  <tr>
+                    <td className="p-2 font-bold border-r border-slate-200 text-emerald-800">Total Other Salaries Paid</td>
+                    <td className="p-2 text-center border-r border-slate-200">{paidOtherSalaryRows.length}</td>
+                    <td className="p-2 text-right font-bold text-emerald-800">{pkr(effectiveOtherPaid)}</td>
+                  </tr>
+                  <tr>
+                    <td className="p-2 font-bold border-r border-slate-200 text-amber-800">Total Other Salaries Pending / Unpaid</td>
+                    <td className="p-2 text-center border-r border-slate-200">{unpaidOtherSalaryRows.length}</td>
+                    <td className="p-2 text-right font-bold text-amber-800">{pkr(Math.max(effectiveOtherDue - effectiveOtherPaid, 0))}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Directory Table - ONLY displayed when user clicks a card */}
+          {otherSalaryFilter !== null && (
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs animate-fadeIn">
+              <div className="border-b border-slate-100 bg-slate-50/70 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
+                <span
+                  className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ${
+                    otherSalaryFilter === "paid"
+                      ? "bg-emerald-100 text-emerald-800"
+                      : otherSalaryFilter === "unpaid"
+                      ? "bg-amber-100 text-amber-800"
+                      : "bg-slate-100 text-slate-800"
+                  }`}
+                >
+                  {otherSalaryFilter === "paid" ? "Paid Other Salaries" : otherSalaryFilter === "unpaid" ? "Unpaid Other Salaries" : "All Other Salaries"} ({displayedOtherSalaryRows.length})
+                </span>
+
+                <div className="flex items-center gap-2.5 print:hidden">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search employee by name/job…"
+                      value={otherSalarySearch}
+                      onChange={(e) => setOtherSalarySearch(e.target.value)}
+                      className="w-44 sm:w-56 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-800 placeholder:text-slate-400 outline-none focus:border-brand-navy focus:ring-1 focus:ring-brand-navy transition"
+                    />
+                    {otherSalarySearch && (
+                      <button
+                        type="button"
+                        onClick={() => setOtherSalarySearch("")}
+                        className="absolute right-2 top-1 text-slate-400 hover:text-slate-600 text-xs"
+                        title="Clear search"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setOtherSalaryFilter(null)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition cursor-pointer"
+                    title="Close list"
+                  >
+                    <span>Close</span>
+                    <span>✕</span>
+                  </button>
+                </div>
+              </div>
+
+              {displayedOtherSalaryRows.length === 0 ? (
+                <div className="p-10 text-center text-xs text-slate-500">
+                  <p className="font-bold text-slate-600">No employee record found</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto [scrollbar-width:thin]">
+                  <table className="w-full text-left text-xs min-w-[500px]">
+                    <thead className="border-b border-slate-100 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                      <tr>
+                        <th className="py-3 pl-5 pr-4">Employee Name</th>
+                        <th className="py-3 pr-4">Job Title / Designation</th>
+                        <th className="py-3 pr-4">Monthly Salary</th>
+                        <th className="py-3 pr-5 text-right">Payment Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {displayedOtherSalaryRows.map((s) => (
                         <tr key={s.id} className="hover:bg-slate-50/70 transition-colors">
                           <td className="py-3 pl-5 pr-4 font-bold text-[#0b1f3a]">{s.name}</td>
                           <td className="py-3 pr-4 text-xs font-semibold text-slate-500">{s.label}</td>
