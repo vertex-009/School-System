@@ -52,7 +52,7 @@ export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();
   await clearSessionCookies();
-  redirect("/login");
+  redirect("/");
 }
 export async function requestReset(formData: FormData) {
   const supabase = await createClient();
