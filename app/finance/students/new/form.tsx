@@ -55,7 +55,7 @@ export function NewStudentForm({
     dob: "",
     joined_on: new Date().toISOString().slice(0, 10),
     address: "",
-    admission_no: defaultAdmissionNo,
+    admission_no: "",
     roll_no: "",
     class_id: initialClass?.id || "",
     status: "active",
@@ -241,7 +241,8 @@ export function NewStudentForm({
           required
           value={formData.admission_no}
           onChange={handleChange}
-          placeholder="e.g. ADM-42"
+          placeholder="ADM-01"
+          helper="Format: ADM-01"
           error={result?.field === "admission_no" ? result.error : undefined}
         />
 

@@ -4,6 +4,7 @@ import { Shell } from "@/components/shell";
 import { StaffProfileCard } from "@/components/staff-profile-card";
 import { Back } from "@/components/ui";
 import { EditStaffProfileForm } from "@/components/edit-staff-profile-form";
+import { ResetTeacherPasswordButton } from "@/components/reset-password-modal";
 import { getContext } from "@/lib/session";
 import { redirect } from "next/navigation";
 
@@ -57,6 +58,15 @@ export default async function FinanceStaffDetailPage({
                   {staff.is_active ? "Suspend" : "Activate"}
                 </button>
               </form>
+            )}
+            {!readOnly && (
+              <ResetTeacherPasswordButton
+                teacherId={staff.id}
+                name={staff.name}
+                email={staff.email || ""}
+                roleTitle="Staff"
+                directoryHref="/principal/staff"
+              />
             )}
             {!readOnly &&
               (!showEdit ? (

@@ -345,6 +345,57 @@ export async function setTeacherActive(teacherId: string, active: boolean) {
   revalidatePath("/finance/salaries/pay");
   revalidatePath("/finance/salaries/status");
 }
+export async function adminResetTeacherPassword(teacherId: string, newPassword: string) {
+  const { supabase, profile } = await getContext();
+  if (!["principal", "super_admin"].includes(profile.role)) {
+    return { ok: false, error: "Only Principal can reset teacher passwords" };
+  }
+  const cleanPass = String(newPassword || "").trim();
+  if (cleanPass.length < 8) {
+    return { ok: false, error: "Password must be at least 8 characters long" };
+  }
+
+  // 1. If service role key is present in env, use Supabase admin auth
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    const { createClient: createAdminClient } = await import("@supabase/supabase-js");
+    const admin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { error: adminErr } = await admin.auth.admin.updateUserById(teacherId, { password: cleanPass });
+    if (!adminErr) {
+      revalidatePath("/principal/teachers");
+      revalidatePath(`/principal/teachers/${teacherId}`);
+      revalidatePath(`/finance/teachers/${teacherId}`);
+      return { ok: true };
+    }
+  }
+
+  // 2. Call RPC reset_teacher_password
+  const { data, error } = await supabase.rpc("reset_teacher_password", {
+    p_teacher_id: teacherId,
+    p_new_password: cleanPass,
+  });
+
+  if (error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes("does not exist") || msg.includes("schema cache") || msg.includes("could not find")) {
+      return {
+        ok: false,
+        error: "Please run 'supabase/migration_reset_teacher_password.sql' in your Supabase SQL Editor to enable password reset.",
+      };
+    }
+    return { ok: false, error: error.message };
+  }
+
+  if (data && typeof data === "object" && "ok" in data && !(data as { ok: boolean }).ok) {
+    return { ok: false, error: (data as { error?: string }).error || "Failed to reset password" };
+  }
+
+  revalidatePath("/principal/teachers");
+  revalidatePath(`/principal/teachers/${teacherId}`);
+  revalidatePath(`/finance/teachers/${teacherId}`);
+  return { ok: true };
+}
 /** Principal adds Finance for their own school. */
 export async function createSchoolStaff(formData: FormData) {
   const { requireCnic } = await import("@/lib/cnic");
@@ -636,9 +687,12 @@ export async function saveStudent(formData: FormData) {
   if (!name) return { ok: false, error: "Student name is required", field: "name" };
   if (!admission_no) return { ok: false, error: "Admission number is required", field: "admission_no" };
 
-  // Format pure numeric admission numbers to standard ADM-XX (e.g. 42 -> ADM-42)
+  // Format admission numbers to standard ADM-XX (e.g. 42 -> ADM-42, adm-42 -> ADM-42)
   if (/^\d+$/.test(admission_no)) {
     admission_no = `ADM-${admission_no}`;
+  } else if (/^adm-?\d+$/i.test(admission_no)) {
+    const num = admission_no.replace(/\D/g, "");
+    admission_no = `ADM-${num}`;
   }
 
   const cnicCheck = requireCnic(String(formData.get("cnic") || ""));
