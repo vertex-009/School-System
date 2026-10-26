@@ -347,8 +347,8 @@ export async function setTeacherActive(teacherId: string, active: boolean) {
 }
 export async function adminResetTeacherPassword(teacherId: string, newPassword: string) {
   const { supabase, profile } = await getContext();
-  if (!["principal", "super_admin"].includes(profile.role)) {
-    return { ok: false, error: "Only Principal can reset teacher passwords" };
+  if (!["principal", "finance", "super_admin"].includes(profile.role)) {
+    return { ok: false, error: "Only Principal or Finance can reset teacher passwords" };
   }
   const cleanPass = String(newPassword || "").trim();
   if (cleanPass.length < 8) {

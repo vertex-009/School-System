@@ -1597,7 +1597,7 @@ export function FinancialSummaryView({
               </div>
               <div className="mt-3 flex items-baseline justify-between">
                 <span className="text-2xl sm:text-3xl font-black text-white tabular-nums print:text-black">
-                  - {pkr(expensesTotal)}
+                  {pkr(expensesTotal)}
                 </span>
                 <span className="text-xs font-semibold text-slate-300 print:text-slate-700">
                   {allExpenses.length} Entries
@@ -1650,7 +1650,7 @@ export function FinancialSummaryView({
               </div>
               <div className="mt-3 flex items-baseline justify-between">
                 <span className="text-2xl sm:text-3xl font-black text-rose-700 tabular-nums print:text-black">
-                  - {pkr(schoolExpenses)}
+                  {pkr(schoolExpenses)}
                 </span>
                 <span className="text-xs font-bold text-rose-800 print:text-slate-700">
                   {schoolExpenseRows.length} Entries
@@ -1703,7 +1703,7 @@ export function FinancialSummaryView({
               </div>
               <div className="mt-3 flex items-baseline justify-between">
                 <span className="text-2xl sm:text-3xl font-black text-amber-800 tabular-nums print:text-black">
-                  - {pkr(otherExpenses)}
+                  {pkr(otherExpenses)}
                 </span>
                 <span className="text-xs font-bold text-amber-800 print:text-slate-700">
                   {otherExpenseRows.length} Entries
@@ -1730,17 +1730,17 @@ export function FinancialSummaryView({
                   <tr>
                     <td className="p-2 font-bold border-r border-slate-200 text-rose-800">Operational / School Expenses</td>
                     <td className="p-2 text-center border-r border-slate-200">{schoolExpenseRows.length}</td>
-                    <td className="p-2 text-right font-bold text-rose-800">- {pkr(schoolExpenses)}</td>
+                    <td className="p-2 text-right font-bold text-rose-800">{pkr(schoolExpenses)}</td>
                   </tr>
                   <tr>
                     <td className="p-2 font-bold border-r border-slate-200 text-amber-800">Other Miscellaneous Expenses</td>
                     <td className="p-2 text-center border-r border-slate-200">{otherExpenseRows.length}</td>
-                    <td className="p-2 text-right font-bold text-amber-800">- {pkr(otherExpenses)}</td>
+                    <td className="p-2 text-right font-bold text-amber-800">{pkr(otherExpenses)}</td>
                   </tr>
                   <tr>
                     <td className="p-2 font-bold border-r border-slate-200">Total Outflow Expenses</td>
                     <td className="p-2 text-center border-r border-slate-200">{allExpenses.length}</td>
-                    <td className="p-2 text-right font-bold">- {pkr(expensesTotal)}</td>
+                    <td className="p-2 text-right font-bold">{pkr(expensesTotal)}</td>
                   </tr>
                 </tbody>
               </table>
