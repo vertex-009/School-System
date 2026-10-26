@@ -46,8 +46,8 @@ export function AppChrome({ role, children }: { role: ShellRole; children: React
       </aside>
 
       <main className="w-full max-w-full min-w-0 overflow-x-hidden md:pl-[15.5rem] print:pl-0">
-        <nav className="flex items-center gap-2 overflow-x-auto border-b border-slate-200 bg-white px-3 py-2.5 md:hidden print:hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden touch-pan-x w-full max-w-full shrink-0">
-          <span className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full">
+        <nav className="sticky top-0 z-30 flex items-center gap-2 overflow-x-auto border-b border-slate-200/90 bg-white/95 px-3 py-2.5 backdrop-blur-md md:hidden print:hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden touch-pan-x w-full max-w-full shrink-0 shadow-xs">
+          <span className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full border border-slate-200">
             <Image src={SCHOOL.logoSrc} alt="" fill sizes="28px" className="object-cover object-center" />
           </span>
           <SideNav role={role} variant="mobile" />

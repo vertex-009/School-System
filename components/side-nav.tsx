@@ -205,7 +205,7 @@ export function SideNav({ role, variant }: { role: ShellRole; variant: "side" | 
             ? "bg-gradient-to-r from-[#1a8cff] to-[#5dade2] text-white shadow-[0_0_14px_rgba(26,140,255,0.4)]"
             : "text-slate-200 hover:bg-white/10 hover:text-white"
         }`
-      : `shrink-0 whitespace-nowrap rounded-full px-3.5 py-1 text-xs font-bold transition shadow-2xs ${
+      : `shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-bold transition shadow-2xs ${
           active ? "bg-brand-navy text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
         }`;
 
@@ -216,7 +216,7 @@ export function SideNav({ role, variant }: { role: ShellRole; variant: "side" | 
             ? "bg-gradient-to-r from-[#1a8cff]/90 to-[#5dade2]/80 text-white"
             : "text-slate-300 hover:bg-white/10 hover:text-white"
         }`
-      : `shrink-0 whitespace-nowrap rounded-full px-3.5 py-1 text-xs font-bold transition shadow-2xs ${
+      : `shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-bold transition shadow-2xs ${
           active ? "bg-brand-navy text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
         }`;
 
