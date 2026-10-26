@@ -14,17 +14,18 @@ export function MobileNav({ role }: { role: ShellRole }) {
   const [hasUnreadAnnouncements, setHasUnreadAnnouncements] = useState(false);
   const pathname = usePathname();
 
-  // Listen for announcement unread events & auto-clear when viewing announcements feed
+  // Listen for announcement unread events & auto-clear when viewing announcements history
   useEffect(() => {
-    const isFeed = pathname.includes("/announcements") && !pathname.includes("/make");
-    if (isFeed) {
+    if (pathname.includes("/announcements/history")) {
       setHasUnreadAnnouncements(false);
     }
 
     const handler = (e: Event) => {
       const custom = e as CustomEvent<{ hasUnread: boolean }>;
       if (typeof custom.detail?.hasUnread === "boolean") {
-        setHasUnreadAnnouncements(isFeed ? false : custom.detail.hasUnread);
+        setHasUnreadAnnouncements(
+          pathname.includes("/announcements/history") ? false : custom.detail.hasUnread
+        );
       }
     };
     window.addEventListener("sms_announcement_unread_state", handler);

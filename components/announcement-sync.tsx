@@ -21,13 +21,8 @@ export function AnnouncementSync({ role }: { role: string }) {
   const currentUserIdRef = useRef<string | null>(null);
   const lastKnownIdRef = useRef<string | null>(null);
 
-  // User is only considered reading announcements when viewing the announcement feed (NOT on create/make page)
-  const isViewingAnnouncements =
-    (pathname === `/${role}/announcements` ||
-      pathname === "/principal/announcements" ||
-      pathname === "/finance/announcements" ||
-      pathname === "/teacher/announcements") &&
-    !pathname.includes("/make");
+  // User is considered reading announcements ONLY when viewing the actual history (or when history is opened)
+  const isViewingHistory = pathname.includes("/announcements/history");
 
   // Helper to mark announcements as read for this user
   const markAsRead = useCallback(() => {
@@ -71,13 +66,13 @@ export function AnnouncementSync({ role }: { role: string }) {
 
       const isNew = announcementTime > lastReadTime;
 
-      // If user is currently viewing the announcements feed, auto-refresh on new item and mark as read
-      if (lastKnownIdRef.current && res.id && lastKnownIdRef.current !== res.id && isViewingAnnouncements) {
+      // Auto-refresh history page if user is actively on history page when new announcement arrives
+      if (lastKnownIdRef.current && res.id && lastKnownIdRef.current !== res.id && isViewingHistory) {
         router.refresh();
       }
       lastKnownIdRef.current = res.id;
 
-      if (isViewingAnnouncements) {
+      if (isViewingHistory) {
         markAsRead();
       } else {
         setHasUnread(isNew);
@@ -90,14 +85,23 @@ export function AnnouncementSync({ role }: { role: string }) {
     } catch {
       /* ignore */
     }
-  }, [role, isViewingAnnouncements, markAsRead, router]);
+  }, [role, isViewingHistory, markAsRead, router]);
 
-  // If user is on the announcements page, mark as read
+  // If user is on the announcements history page, mark as read
   useEffect(() => {
-    if (isViewingAnnouncements) {
+    if (isViewingHistory) {
       markAsRead();
     }
-  }, [pathname, isViewingAnnouncements, markAsRead]);
+  }, [pathname, isViewingHistory, markAsRead]);
+
+  // Listen for when Teacher or Finance accordion opens "Announcement History" tab
+  useEffect(() => {
+    const onHistoryOpened = () => {
+      markAsRead();
+    };
+    window.addEventListener("sms_announcements_history_opened", onHistoryOpened);
+    return () => window.removeEventListener("sms_announcements_history_opened", onHistoryOpened);
+  }, [markAsRead]);
 
   useEffect(() => {
     // Initial check

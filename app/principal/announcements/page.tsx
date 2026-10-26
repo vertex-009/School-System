@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Shell } from "@/components/shell";
+import { AnnouncementDot } from "@/components/announcement-dot";
 
 export default function PrincipalAnnouncementsPage() {
   return (
@@ -66,10 +67,11 @@ export default function PrincipalAnnouncementsPage() {
                   </svg>
                 </span>
               </div>
-              <div className="mt-4">
+              <div className="mt-4 flex items-center gap-2">
                 <h3 className="text-lg font-bold text-[#0b1f3a] transition group-hover:text-brand-accent">
                   Announcement History
                 </h3>
+                <AnnouncementDot />
               </div>
             </Link>
           </div>

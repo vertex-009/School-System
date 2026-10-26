@@ -165,7 +165,15 @@ export function FinanceAnnouncementsClient({
         {/* 2. Announcement History */}
         <button
           type="button"
-          onClick={() => setActiveTab((prev) => (prev === "history" ? null : "history"))}
+          onClick={() => {
+            setActiveTab((prev) => {
+              const next = prev === "history" ? null : "history";
+              if (next === "history") {
+                window.dispatchEvent(new CustomEvent("sms_announcements_history_opened"));
+              }
+              return next;
+            });
+          }}
           className={`group relative flex flex-col justify-between rounded-2xl border p-5 shadow-xs transition-all duration-200 text-left cursor-pointer active:scale-[0.99] ${
             activeTab === "history"
               ? "border-sky-400 bg-gradient-to-br from-sky-50 via-white to-blue-50/40 ring-2 ring-sky-400/20 shadow-md"
