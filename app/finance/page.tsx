@@ -313,7 +313,7 @@ export default async function FinanceHome({
               </span>
               <div className="min-w-0 flex-1 flex items-center gap-2">
                 <p className="truncate text-sm font-bold text-[#0b1f3a]">{a.title}</p>
-                {a.href.includes("announcements") && <AnnouncementDot />}
+                {a.href === "/finance/announcements" && <AnnouncementDot />}
               </div>
               <svg
                 className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:text-[#3b9fd9]"

@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { deleteAnnouncement, saveAnnouncement } from "@/lib/actions";
 import { broadcastNewAnnouncement } from "@/lib/announcement-events";
+import { AnnouncementDot } from "@/components/announcement-dot";
 import { MONTHS } from "@/lib/format";
 
 export interface TeacherAnnouncementItem {
@@ -185,10 +186,11 @@ export function TeacherAnnouncementsClient({
                 {activeTab === "history" ? "Close ▴" : "Open ▾"}
               </span>
             </div>
-            <div className="mt-4">
+            <div className="mt-4 flex items-center gap-2">
               <h3 className="text-lg font-bold text-[#0b1f3a] transition group-hover:text-brand-accent">
                 Announcement History
               </h3>
+              <AnnouncementDot />
             </div>
           </button>
         </div>

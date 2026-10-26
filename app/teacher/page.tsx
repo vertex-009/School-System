@@ -253,7 +253,7 @@ export default async function TeacherHome({
                 <p className="truncate text-sm font-bold text-[#0b1f3a] transition group-hover:text-brand-accent">
                   {a.title}
                 </p>
-                {a.href.includes("announcements") && <AnnouncementDot />}
+                {a.href === "/teacher/announcements" && <AnnouncementDot />}
               </div>
               <svg
                 className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-brand-accent"

@@ -253,7 +253,10 @@ export function SideNav({
     <>
       {items.map((item) => {
         if (!isGroup(item)) {
-          const isAnnounce = item.href.includes("announcements") || item.label.toLowerCase().includes("announcement");
+          const isAnnounce =
+            (item.href.includes("announcements") || item.label.toLowerCase().includes("announcement")) &&
+            !item.href.includes("/make") &&
+            !item.label.toLowerCase().includes("make");
           return navLink(
             item.href,
             item.label,
@@ -269,7 +272,11 @@ export function SideNav({
           return (
             <div key={item.id} className="contents">
               {item.children.map((child) => {
-                const isChildAnnounce = isAnnounceGroup && child.href.includes("announcements");
+                const isChildAnnounce =
+                  isAnnounceGroup &&
+                  child.href.includes("announcements") &&
+                  !child.href.includes("/make") &&
+                  !child.label.toLowerCase().includes("make");
                 return navLink(
                   child.href,
                   child.label,
@@ -305,7 +312,11 @@ export function SideNav({
             </button>
             {expanded &&
               item.children.map((child) => {
-                const isChildAnnounce = isAnnounceGroup && child.href.includes("announcements");
+                const isChildAnnounce =
+                  isAnnounceGroup &&
+                  child.href.includes("announcements") &&
+                  !child.href.includes("/make") &&
+                  !child.label.toLowerCase().includes("make");
                 return navLink(
                   child.href,
                   child.label,
