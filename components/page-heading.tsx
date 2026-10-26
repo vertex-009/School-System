@@ -1,5 +1,3 @@
-import { signOut } from "@/lib/actions";
-
 export function PageHeading({
   title,
   actions,
@@ -13,14 +11,11 @@ export function PageHeading({
       <h1 className="text-base font-bold tracking-tight text-brand-navy sm:text-lg truncate max-w-[14rem] sm:max-w-none">
         {title}
       </h1>
-      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-        {actions}
-        <form action={signOut} className="md:hidden">
-          <button className="rounded-lg bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-600 hover:bg-rose-100 transition cursor-pointer">
-            Logout
-          </button>
-        </form>
-      </div>
+      {actions && (
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          {actions}
+        </div>
+      )}
     </header>
   );
 }
