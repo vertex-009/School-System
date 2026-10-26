@@ -91,9 +91,11 @@ export default async function CollectFeePage({
   let enrolledWithoutDues: EnrolledStudent[] = [];
 
   if (q || studentIdParam) {
+    // 1. Guaranteed-safe base student query using columns present in standard schema
+    const baseCols = "id, name, father_name, admission_no, roll_no, status, created_at, section_id, sections(id, name, class_id, classes(id, name))";
     let studentQuery = supabase
       .from("students")
-      .select("id, name, father_name, admission_no, roll_no, status, created_at, joined_on, monthly_fee, transport_fee, misc_fee, discount, section_id, sections(name, class_id, classes(name))")
+      .select(baseCols)
       .eq("school_id", schoolId);
 
     if (studentIdParam) {
@@ -113,26 +115,77 @@ export default async function CollectFeePage({
       }
     }
 
-    const { data: matchedStudents } = await studentQuery.limit(30);
+    let { data: matchedStudents } = await studentQuery.limit(30);
+
+    // If query failed due to nested relation syntax, fallback to simpler select
+    if (!matchedStudents) {
+      const fallbackQuery = supabase
+        .from("students")
+        .select("id, name, father_name, admission_no, roll_no, status, created_at, section_id, sections(name, classes(name))")
+        .eq("school_id", schoolId);
+      const res = studentIdParam
+        ? await fallbackQuery.eq("id", studentIdParam).maybeSingle()
+        : await fallbackQuery.limit(30);
+      if (res.data) {
+        matchedStudents = (Array.isArray(res.data) ? res.data : [res.data]) as any;
+      }
+    }
+
     const studentsList = (matchedStudents || []) as unknown as EnrolledStudent[];
     const ids = studentsList.map((s) => s.id);
 
     if (ids.length) {
+      // Non-blocking attempt to fetch optional extra fee & join columns if migration was run
+      try {
+        const { data: optData } = await supabase
+          .from("students")
+          .select("id, monthly_fee, transport_fee, misc_fee, discount, joined_on")
+          .in("id", ids);
+        if (optData) {
+          const optMap = Object.fromEntries(optData.map((o: any) => [o.id, o]));
+          for (const s of studentsList) {
+            const o = optMap[s.id];
+            if (o) {
+              s.monthly_fee = o.monthly_fee;
+              s.transport_fee = o.transport_fee;
+              s.misc_fee = o.misc_fee;
+              s.discount = o.discount;
+              s.joined_on = o.joined_on;
+            }
+          }
+        }
+      } catch {
+        // Safe fallback if columns do not exist in DB yet
+      }
+
       if (!period.isFuture) {
         const { ensureCurrentMonthInvoices } = await import("@/lib/fee-invoices");
         await ensureCurrentMonthInvoices(supabase, { month: period.month, year: period.year, dueDay: 10 });
       }
 
+      // Safe invoice query without depending on optional joined_on
       let { data: rawInvoices } = await supabase
         .from("fee_invoices")
         .select(
-          "id, student_id, amount, discount, paid_amount, status, month, year, students(name, father_name, admission_no, roll_no, created_at, joined_on, sections(name, classes(name)))"
+          "id, student_id, amount, discount, paid_amount, status, month, year, students(name, father_name, admission_no, roll_no, created_at, sections(name, classes(name)))"
         )
         .eq("school_id", schoolId)
         .in("student_id", ids)
         .order("year", { ascending: true })
         .order("month", { ascending: true })
         .limit(300);
+
+      if (!rawInvoices) {
+        const { data: simpleInvs } = await supabase
+          .from("fee_invoices")
+          .select("id, student_id, amount, discount, paid_amount, status, month, year")
+          .eq("school_id", schoolId)
+          .in("student_id", ids)
+          .order("year", { ascending: true })
+          .order("month", { ascending: true })
+          .limit(300);
+        rawInvoices = simpleInvs as any;
+      }
 
       let invoices = (rawInvoices || []) as unknown as InvRow[];
 
@@ -148,7 +201,7 @@ export default async function CollectFeePage({
         const classIds = [
           ...new Set(
             missingStudents
-              .map((s) => (s.sections as any)?.class_id)
+              .map((s) => (s.sections as any)?.class_id || (s.sections as any)?.classes?.id)
               .filter(Boolean)
           ),
         ];
@@ -165,25 +218,23 @@ export default async function CollectFeePage({
 
         const newInvoicesToInsert = [];
         for (const s of missingStudents) {
-          const classId = (s.sections as any)?.class_id;
+          const classId = (s.sections as any)?.class_id || (s.sections as any)?.classes?.id;
           const individualFee =
             Number(s.monthly_fee || 0) +
             Number(s.transport_fee || 0) +
             Number(s.misc_fee || 0);
           const fee = individualFee > 0 ? individualFee : Number(classFeeMap[classId] || 0);
-          if (fee > 0) {
-            const disc = Math.min(Number(s.discount || 0), fee);
-            newInvoicesToInsert.push({
-              school_id: schoolId,
-              student_id: s.id,
-              month: period.month,
-              year: period.year,
-              amount: fee,
-              discount: disc,
-              status: "unpaid",
-              due_date: `${period.year}-${String(period.month).padStart(2, "0")}-10`,
-            });
-          }
+          const disc = Math.min(Number(s.discount || 0), fee);
+          newInvoicesToInsert.push({
+            school_id: schoolId,
+            student_id: s.id,
+            month: period.month,
+            year: period.year,
+            amount: fee,
+            discount: disc,
+            status: "unpaid",
+            due_date: `${period.year}-${String(period.month).padStart(2, "0")}-10`,
+          });
         }
 
         if (newInvoicesToInsert.length > 0) {
@@ -194,7 +245,7 @@ export default async function CollectFeePage({
           const { data: refreshedInvoices } = await supabase
             .from("fee_invoices")
             .select(
-              "id, student_id, amount, discount, paid_amount, status, month, year, students(name, father_name, admission_no, roll_no, created_at, joined_on, sections(name, classes(name)))"
+              "id, student_id, amount, discount, paid_amount, status, month, year, students(name, father_name, admission_no, roll_no, created_at, sections(name, classes(name)))"
             )
             .eq("school_id", schoolId)
             .in("student_id", ids)

@@ -322,7 +322,7 @@ export function FinancialSummaryView({
               </div>
               <div className="mt-3">
                 <p className="text-xl sm:text-2xl font-black text-[#be123c] tabular-nums">
-                  - {pkr(expensesTotal)}
+                  {pkr(expensesTotal)}
                 </p>
               </div>
             </div>
@@ -342,7 +342,7 @@ export function FinancialSummaryView({
               </div>
               <div className="mt-3">
                 <p className="text-xl sm:text-2xl font-black text-[#b45309] tabular-nums">
-                  - {pkr(facultySalaries)}
+                  {pkr(facultySalaries)}
                 </p>
               </div>
             </div>
@@ -364,7 +364,7 @@ export function FinancialSummaryView({
               </div>
               <div className="mt-3">
                 <p className="text-xl sm:text-2xl font-black text-[#c2410c] tabular-nums">
-                  - {pkr(otherStaffSalaries)}
+                  {pkr(otherStaffSalaries)}
                 </p>
               </div>
             </div>
@@ -384,7 +384,7 @@ export function FinancialSummaryView({
               </div>
               <div className="mt-3">
                 <p className="text-xl sm:text-2xl font-black text-white tabular-nums">
-                  - {pkr(totalOutflows)}
+                  {pkr(totalOutflows)}
                 </p>
               </div>
             </div>
@@ -599,7 +599,7 @@ export function FinancialSummaryView({
                       <span>Total Outflows</span>
                     </div>
                     <span className="font-black text-slate-900 tabular-nums">
-                      - {pkr(totalOutflows)}
+                      {pkr(totalOutflows)}
                     </span>
                   </div>
 
