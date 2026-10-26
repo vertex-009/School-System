@@ -146,7 +146,15 @@ function groupOpen(pathname: string, group: NavGroup) {
   });
 }
 
-export function SideNav({ role, variant }: { role: ShellRole; variant: "side" | "mobile" }) {
+export function SideNav({
+  role,
+  variant,
+  onNavigate,
+}: {
+  role: ShellRole;
+  variant: "side" | "mobile";
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const items = MENUS[role];
@@ -228,7 +236,10 @@ export function SideNav({ role, variant }: { role: ShellRole; variant: "side" | 
       onMouseEnter={() => fullPrefetch(router, href)}
       onFocus={() => fullPrefetch(router, href)}
       onTouchStart={() => fullPrefetch(router, href)}
-      onClick={() => fullPrefetch(router, href)}
+      onClick={() => {
+        fullPrefetch(router, href);
+        onNavigate?.();
+      }}
       className={className}
     >
       <span className="inline-flex items-center justify-between w-full">
