@@ -39,7 +39,11 @@ export function AnnouncementSync({ role }: { role: string }) {
   const checkLatest = async () => {
     try {
       const res = await getLatestAnnouncementInfo();
-      if (!res?.ok || !res.latestAt) return;
+      if (!res?.ok || !res.latestAt) {
+        setHasUnread(false);
+        window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: { hasUnread: false } }));
+        return;
+      }
 
       const lastReadStr = localStorage.getItem(STORAGE_KEY);
       const lastReadTime = lastReadStr ? new Date(lastReadStr).getTime() : 0;

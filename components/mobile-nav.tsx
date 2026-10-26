@@ -11,7 +11,24 @@ import { SCHOOL } from "@/lib/brand";
 
 export function MobileNav({ role }: { role: ShellRole }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [hasUnreadAnnouncements, setHasUnreadAnnouncements] = useState(false);
   const pathname = usePathname();
+
+  // Listen for announcement unread events & auto-clear when on announcements route
+  useEffect(() => {
+    if (pathname.includes("/announcements")) {
+      setHasUnreadAnnouncements(false);
+    }
+
+    const handler = (e: Event) => {
+      const custom = e as CustomEvent<{ hasUnread: boolean }>;
+      if (typeof custom.detail?.hasUnread === "boolean") {
+        setHasUnreadAnnouncements(pathname.includes("/announcements") ? false : custom.detail.hasUnread);
+      }
+    };
+    window.addEventListener("sms_announcement_unread_state", handler);
+    return () => window.removeEventListener("sms_announcement_unread_state", handler);
+  }, [pathname]);
 
   // Auto-close drawer on route change
   useEffect(() => {
@@ -50,7 +67,7 @@ export function MobileNav({ role }: { role: ShellRole }) {
           <button
             type="button"
             onClick={() => setIsOpen(true)}
-            className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white transition hover:bg-white/20 active:scale-95 cursor-pointer"
+            className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white transition hover:bg-white/20 active:scale-95 cursor-pointer"
             aria-label="Open menu"
             title="Open navigation menu"
           >
@@ -60,6 +77,14 @@ export function MobileNav({ role }: { role: ShellRole }) {
               <line x1="3" y1="12" x2="21" y2="12" />
               <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
+
+            {/* Red dot notification badge */}
+            {hasUnreadAnnouncements && (
+              <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5" title="New Announcement">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
+                <span className="relative inline-flex h-3.5 w-3.5 rounded-full border-2 border-[#0b1f3a] bg-rose-500" />
+              </span>
+            )}
           </button>
 
           {/* School Brand & Role in Top Bar */}

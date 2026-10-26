@@ -164,20 +164,14 @@ export function SideNav({
   const [hasUnreadAnnouncements, setHasUnreadAnnouncements] = useState(false);
 
   useEffect(() => {
-    // Check initial local storage state
-    try {
-      const lastRead = localStorage.getItem("sms_announcements_last_read");
-      if (!lastRead && !pathname.includes("/announcements")) {
-        setHasUnreadAnnouncements(true);
-      }
-    } catch {
-      /* ignore */
+    if (pathname.includes("/announcements")) {
+      setHasUnreadAnnouncements(false);
     }
 
     const handler = (e: Event) => {
       const custom = e as CustomEvent<{ hasUnread: boolean }>;
       if (typeof custom.detail?.hasUnread === "boolean") {
-        setHasUnreadAnnouncements(custom.detail.hasUnread);
+        setHasUnreadAnnouncements(pathname.includes("/announcements") ? false : custom.detail.hasUnread);
       }
     };
     window.addEventListener("sms_announcement_unread_state", handler);

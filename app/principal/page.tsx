@@ -171,7 +171,7 @@ export default async function PrincipalHome({
           {
             label: "Paid invoices",
             value: d.paid,
-            href: "/principal/fees/overview",
+            href: `/principal/fees/overview?tab=fees&month=${period.month}&year=${period.year}`,
             tone: "sky",
             hint: periodLabel,
             icon: "invoice-paid",
@@ -179,7 +179,7 @@ export default async function PrincipalHome({
           {
             label: "Unpaid invoices",
             value: d.unpaid,
-            href: "/principal/fees/overview",
+            href: `/principal/fees/overview?tab=fees&month=${period.month}&year=${period.year}`,
             tone: "rose",
             hint: periodLabel,
             icon: "invoice-unpaid",
@@ -187,7 +187,7 @@ export default async function PrincipalHome({
           {
             label: "Expenses",
             value: pkr(expenses),
-            href: "/principal/fees/overview?tab=monthly",
+            href: `/principal/fees/overview?tab=expenses&month=${period.month}&year=${period.year}`,
             tone: "amber",
             hint: periodLabel,
             icon: "wallet",
@@ -195,7 +195,7 @@ export default async function PrincipalHome({
           {
             label: "Fee collected",
             value: pkr(collected),
-            href: "/principal/fees/overview?tab=monthly",
+            href: `/principal/fees/overview?tab=fees&month=${period.month}&year=${period.year}`,
             tone: "emerald",
             hint: periodLabel,
             icon: "coins",
