@@ -72,6 +72,7 @@ export default async function CollectFeePage({
     father_name: string | null;
     admission_no: string;
     roll_no: number | null;
+    status?: string | null;
     created_at: string | null;
     joined_on?: string | null;
     monthly_fee?: number | null;
@@ -80,6 +81,10 @@ export default async function CollectFeePage({
     discount?: number | null;
     sections: unknown;
     paidPayment?: PaymentInfo | null;
+    paidInvoice?: InvRow | null;
+    paidMonth?: string | null;
+    billedAmount?: number;
+    paidAmount?: number;
   };
 
   let bundles: StudentBundle[] = [];
@@ -88,13 +93,13 @@ export default async function CollectFeePage({
   if (q || studentIdParam) {
     let studentQuery = supabase
       .from("students")
-      .select("id, name, father_name, admission_no, roll_no, created_at, joined_on, monthly_fee, transport_fee, misc_fee, discount, section_id, sections(name, class_id, classes(name))")
-      .eq("school_id", schoolId)
-      .eq("status", "active");
+      .select("id, name, father_name, admission_no, roll_no, status, created_at, joined_on, monthly_fee, transport_fee, misc_fee, discount, section_id, sections(name, class_id, classes(name))")
+      .eq("school_id", schoolId);
 
     if (studentIdParam) {
       studentQuery = studentQuery.eq("id", studentIdParam);
     } else {
+      studentQuery = studentQuery.neq("status", "left");
       const cleanQ = q.replace(/[%_\\]/g, "").trim();
       const digits = cleanQ.replace(/\D/g, "");
       if (digits) {
@@ -182,7 +187,10 @@ export default async function CollectFeePage({
         }
 
         if (newInvoicesToInsert.length > 0) {
-          await supabase.from("fee_invoices").insert(newInvoicesToInsert);
+          await supabase.from("fee_invoices").upsert(newInvoicesToInsert, {
+            onConflict: "student_id,month,year",
+            ignoreDuplicates: true,
+          });
           const { data: refreshedInvoices } = await supabase
             .from("fee_invoices")
             .select(
@@ -196,19 +204,17 @@ export default async function CollectFeePage({
         }
       }
 
-      // Check payments for invoices in this period so we can show receipt info if paid
-      const periodInvoiceIds = invoices
-        .filter((inv) => inv.month === period.month && inv.year === period.year && inv.status === "paid")
-        .map((inv) => inv.id);
-
+      // Check payments for all student invoices to attach receipt information
+      const allInvoiceIds = invoices.map((inv) => inv.id);
       const paidReceiptsMap = new Map<string, PaymentInfo>();
-      if (periodInvoiceIds.length > 0) {
+      if (allInvoiceIds.length > 0) {
         const { data: payments } = await supabase
           .from("payments")
           .select("id, invoice_id, amount, receipt_no, paid_at")
-          .in("invoice_id", periodInvoiceIds);
+          .in("invoice_id", allInvoiceIds)
+          .order("paid_at", { ascending: false });
         for (const p of payments || []) {
-          if (p.invoice_id) {
+          if (p.invoice_id && !paidReceiptsMap.has(p.invoice_id)) {
             paidReceiptsMap.set(p.invoice_id, {
               id: p.id,
               receipt_no: p.receipt_no || "REC",
@@ -246,7 +252,7 @@ export default async function CollectFeePage({
           }
           return {
             studentId: sId,
-            student,
+            student: student || (sObj as unknown as InvRow["students"]),
             lines: summary.lines,
             totalDue: summary.totalDue,
             oldestId: summary.lines[0]?.id,
@@ -258,13 +264,21 @@ export default async function CollectFeePage({
       enrolledWithoutDues = studentsList
         .filter((s) => !studentsWithDues.has(s.id))
         .map((s) => {
-          const paidPeriodInv = invoices.find(
-            (inv) => inv.student_id === s.id && inv.month === period.month && inv.year === period.year && inv.status === "paid"
+          const studentInvs = invoices.filter((inv) => inv.student_id === s.id);
+          const paidPeriodInv = studentInvs.find(
+            (inv) => inv.month === period.month && inv.year === period.year && inv.status === "paid"
           );
-          const paymentInfo = paidPeriodInv ? paidReceiptsMap.get(paidPeriodInv.id) || null : null;
+          const lastPaidInv = paidPeriodInv || [...studentInvs].filter((inv) => inv.status === "paid").pop();
+          const paymentInfo = lastPaidInv ? paidReceiptsMap.get(lastPaidInv.id) || null : null;
+          const billedAmount = lastPaidInv ? Number(lastPaidInv.amount) : Number(s.monthly_fee || 0);
+          const paidAmount = paymentInfo ? paymentInfo.amount : (lastPaidInv ? Number(lastPaidInv.paid_amount || lastPaidInv.amount) : billedAmount);
           return {
             ...s,
             paidPayment: paymentInfo,
+            paidInvoice: lastPaidInv || null,
+            paidMonth: lastPaidInv ? `${MONTHS[lastPaidInv.month - 1]} ${lastPaidInv.year}` : period.label,
+            billedAmount,
+            paidAmount,
           };
         });
     }
@@ -460,56 +474,134 @@ export default async function CollectFeePage({
             );
           })}
 
-          {/* Enrolled Students with No Unpaid Balance */}
+          {/* Enrolled Students with No Unpaid Balance (PAID) */}
           {enrolledWithoutDues.map((s) => {
             const klass = classNameOf(s.sections);
             const paid = s.paidPayment;
+            const father = s.father_name || "";
+            const paidAmt = s.paidAmount || s.billedAmount || 0;
             return (
-              <div
+              <section
                 key={s.id}
-                className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/50 to-white p-5 shadow-xs"
+                className="overflow-hidden rounded-2xl border border-emerald-200/90 bg-white shadow-sm"
               >
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-emerald-100 pb-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-lg font-bold text-brand-navy">{s.name}</h3>
-                      <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
-                        {paid ? "Fee Paid for " + period.label : "Enrolled & Active"}
-                      </span>
+                {/* Clean Receipt Header */}
+                <div className="border-b border-emerald-100 bg-gradient-to-r from-emerald-50/70 via-teal-50/40 to-white p-5 sm:p-6">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-xs">
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-xl font-black text-brand-navy">{s.name}</h2>
+                          <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-extrabold text-emerald-900 border border-emerald-200">
+                            {klass}
+                          </span>
+                        </div>
+                        <p className="text-xs font-semibold text-slate-500 mt-0.5">
+                          Father: <span className="text-slate-800">{father || "—"}</span>
+                          {s.roll_no != null && (
+                            <> · Roll: <span className="text-slate-800 font-bold">{s.roll_no}</span></>
+                          )}
+                          {s.admission_no && (
+                            <> · Adm No: <span className="text-slate-800 font-mono font-bold">{s.admission_no}</span></>
+                          )}
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Class: <b>{klass}</b> · Roll: <b>{s.roll_no ?? "—"}</b> · Adm: <b className="font-mono">{s.admission_no}</b> · Father: <b>{s.father_name || "—"}</b>
-                    </p>
+
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-right">
+                      <p className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700">Fee Status</p>
+                      <p className="text-xl font-black text-emerald-800 tabular-nums">
+                        ✓ Paid {paidAmt > 0 ? `(${pkr(paidAmt)})` : ""}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {paid && (
-                      <Link
-                        href={`/finance/fees/receipts/${paid.id}`}
-                        className="rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-emerald-700 shadow-xs"
-                      >
-                        Print Receipt ({paid.receipt_no})
-                      </Link>
-                    )}
-                    <Link
-                      href={`/finance/students/${s.id}`}
-                      className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-2xs"
-                    >
-                      View Profile →
-                    </Link>
+
+                  {/* Voucher Summary Bar */}
+                  <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-emerald-100 pt-3 text-xs">
+                    <div>
+                      <span className="text-slate-400 font-medium">Class:</span>
+                      <p className="font-bold text-brand-navy">{klass}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-medium">Roll No:</span>
+                      <p className="font-bold text-brand-navy">{s.roll_no ?? "—"}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-medium">Admission No:</span>
+                      <p className="font-mono font-bold text-brand-navy">{s.admission_no || "—"}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-medium">Billing Period:</span>
+                      <p className="font-bold text-brand-navy">{period.label}</p>
+                    </div>
                   </div>
                 </div>
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
-                  <p>
-                    ✓ No pending fee balance for <b>{period.label}</b>.
-                  </p>
-                  <Link
-                    href="/finance/income-vs-expenses?tab=fees"
-                    className="font-bold text-brand-accent hover:underline"
-                  >
-                    View All Fee Records →
-                  </Link>
+
+                {/* Paid Confirmation Box */}
+                <div className="p-5 sm:p-6 space-y-4">
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
+                            ✓ Fee Cleared for {s.paidMonth || period.label}
+                          </span>
+                          {paidAmt > 0 && (
+                            <span className="text-xs font-bold text-slate-700">
+                              Amount: <strong className="text-emerald-800">{pkr(paidAmt)}</strong>
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-600 mt-2">
+                          No pending balance for <strong>{period.label}</strong>. All dues are completely cleared.
+                        </p>
+                        {paid && (
+                          <p className="text-xs font-semibold text-slate-700 mt-1">
+                            Receipt: <span className="font-mono font-bold text-brand-navy">{paid.receipt_no}</span>
+                            {paid.paid_at && (
+                              <> · Date Paid: <span className="text-slate-800">{new Date(paid.paid_at).toLocaleDateString("en-PK", { month: "short", day: "numeric", year: "numeric" })}</span></>
+                            )}
+                            {paid.amount > 0 && (
+                              <> · Paid Sum: <span className="font-bold text-emerald-800">{pkr(paid.amount)}</span></>
+                            )}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {paid && (
+                          <Link
+                            href={`/finance/fees/receipts/${paid.id}`}
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 transition cursor-pointer"
+                          >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                            </svg>
+                            Print Receipt ({paid.receipt_no})
+                          </Link>
+                        )}
+                        <Link
+                          href={`/finance/students/${s.id}`}
+                          className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
+                        >
+                          View Profile →
+                        </Link>
+                        <Link
+                          href="/finance/income-vs-expenses?tab=fees"
+                          className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
+                        >
+                          Fee Overview →
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              </section>
             );
           })}
         </div>

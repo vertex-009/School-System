@@ -99,7 +99,7 @@ export function StudentSearchBar({
     params.set("year", String(year));
     params.set("q", student.name);
     params.set("student_id", student.id);
-    router.push(`/finance/collect?${params.toString()}`);
+    window.location.href = `/finance/collect?${params.toString()}`;
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {

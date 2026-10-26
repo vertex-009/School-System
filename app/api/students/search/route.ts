@@ -19,12 +19,12 @@ export async function GET(request: Request) {
     const clean = q.replace(/[%_\\]/g, "").trim();
     const digits = clean.replace(/\D/g, "");
 
-    // Search query on students table
+    // Search query on students table (exclude left students)
     let query = supabase
       .from("students")
       .select("id, name, father_name, admission_no, roll_no, status, sections(name, classes(name))")
       .eq("school_id", schoolId)
-      .eq("status", "active");
+      .neq("status", "left");
 
     if (digits) {
       // If query has digits (e.g. "42", "ADM-42", "Roll 5"):
