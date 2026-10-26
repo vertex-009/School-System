@@ -161,6 +161,12 @@ export default function LoginPage() {
             )}
           </button>
         </form>
+
+        <p className="mt-6 text-center text-xs text-slate-500">
+          <Link href="/" className="font-semibold text-slate-400 transition hover:text-[#5dade2]">
+            ← Back to home
+          </Link>
+        </p>
       </div>
     </main>
   );

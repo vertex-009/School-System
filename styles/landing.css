@@ -1,0 +1,59 @@
+/* Landing-only styles. Import this once in the app that renders <LandingPage />. */
+
+html:has(.landing-root) {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:has(.landing-root) {
+    scroll-behavior: auto;
+  }
+}
+
+.landing-root {
+  --mist: #f5f9fc;
+  --ink: #0b1f3a;
+  --slate-text: #4a5b72;
+  background: #ffffff;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+.landing-root section[id] {
+  scroll-margin-top: 5.5rem;
+}
+
+.cta-shimmer {
+  position: relative;
+  isolation: isolate;
+}
+.cta-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.95) 50%, transparent 70%) -200% 0 / 250% 100% no-repeat;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.cta-shimmer:hover::after,
+.cta-shimmer:focus-visible::after {
+  opacity: 1;
+  animation: cta-sweep 1.6s ease-in-out infinite;
+}
+@keyframes cta-sweep {
+  to {
+    background-position: 200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cta-shimmer:hover::after,
+  .cta-shimmer:focus-visible::after {
+    animation: none;
+  }
+}

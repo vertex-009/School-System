@@ -92,6 +92,7 @@ function applyRoleGuards(request: NextRequest, response: NextResponse) {
 export async function updateSession(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isPublic =
+    path === "/" ||
     path.startsWith("/login") ||
     path.startsWith("/forgot-password") ||
     path.startsWith("/reset-password") ||
