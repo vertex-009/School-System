@@ -27,8 +27,7 @@ const ACTIONS: {
   { href: "/finance/students/new", title: "Add student", icon: "user" },
   { href: "/finance/students/import", title: "Import by class", icon: "import" },
   { href: "/finance/students/transfer", title: "Class transfer", icon: "transfer" },
-  { href: "/finance/collect", title: "Collect cash", icon: "cash" },
-  { href: "/finance/history", title: "Collection history", icon: "history" },
+  { href: "/finance/collect", title: "Fee collection", icon: "cash" },
   { href: "/finance/other-employees", title: "Other employees", icon: "staff" },
   { href: "/finance/salaries", title: "Pay salaries", icon: "staff" },
   { href: "/finance/expenses", title: "Other expenses", icon: "expense" },
@@ -220,7 +219,7 @@ export default async function FinanceHome({
             {
               label: "Fee collected",
               value: pkr(collected),
-              href: "/finance/history",
+              href: "/finance/income-vs-expenses?tab=fees",
               tone: "emerald",
               icon: "coins",
             },

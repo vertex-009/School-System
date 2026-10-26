@@ -14,41 +14,57 @@ type SuggestionItem = {
 
 export function StudentSearchBar({
   defaultValue = "",
+  defaultStudentId = "",
   month,
   year,
 }: {
   defaultValue?: string;
+  defaultStudentId?: string;
   month: number;
   year: number;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState(defaultValue);
+  const [selectedStudentId, setSelectedStudentId] = useState(defaultStudentId);
   const [suggestions, setSuggestions] = useState<SuggestionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
+  const lastFetchedQueryRef = useRef("");
 
   useEffect(() => {
     setQuery(defaultValue);
   }, [defaultValue]);
 
   useEffect(() => {
+    setSelectedStudentId(defaultStudentId);
+  }, [defaultStudentId]);
+
+  useEffect(() => {
     const trimmed = query.trim();
     if (trimmed.length < 1) {
       setSuggestions([]);
       setIsOpen(false);
+      lastFetchedQueryRef.current = "";
+      return;
+    }
+
+    // Skip re-fetching if query equals the currently selected student's name
+    if (selectedStudentId && defaultValue && trimmed === defaultValue.trim()) {
       return;
     }
 
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
+        lastFetchedQueryRef.current = trimmed;
         const res = await fetch(`/api/students/search?q=${encodeURIComponent(trimmed)}`);
         if (res.ok) {
           const data = await res.json();
-          setSuggestions(data.results || []);
-          setIsOpen((data.results || []).length > 0);
+          const list = data.results || [];
+          setSuggestions(list);
+          setIsOpen(list.length > 0);
           setSelectedIndex(-1);
         }
       } catch (err) {
@@ -56,10 +72,10 @@ export function StudentSearchBar({
       } finally {
         setLoading(false);
       }
-    }, 200);
+    }, 180);
 
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, selectedStudentId, defaultValue]);
 
   // Click outside listener
   useEffect(() => {
@@ -74,8 +90,10 @@ export function StudentSearchBar({
 
   function handleSelect(student: SuggestionItem) {
     setQuery(student.name);
+    setSelectedStudentId(student.id);
     setIsOpen(false);
-    // Navigate with exact student_id and q
+    setSuggestions([]);
+
     const params = new URLSearchParams();
     params.set("month", String(month));
     params.set("year", String(year));
@@ -85,18 +103,25 @@ export function StudentSearchBar({
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (!isOpen || !suggestions.length) return;
-
     if (e.key === "ArrowDown") {
+      if (!isOpen && suggestions.length > 0) {
+        setIsOpen(true);
+        setSelectedIndex(0);
+        return;
+      }
       e.preventDefault();
       setSelectedIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : 0));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setSelectedIndex((prev) => (prev > 0 ? prev - 1 : suggestions.length - 1));
-    } else if (e.key === "Enter" && selectedIndex >= 0) {
-      e.preventDefault();
-      const chosen = suggestions[selectedIndex];
-      if (chosen) handleSelect(chosen);
+    } else if (e.key === "Enter") {
+      if (isOpen && suggestions.length > 0) {
+        e.preventDefault();
+        const chosen = selectedIndex >= 0 ? suggestions[selectedIndex] : suggestions[0];
+        if (chosen) {
+          handleSelect(chosen);
+        }
+      }
     } else if (e.key === "Escape") {
       setIsOpen(false);
     }
@@ -104,6 +129,9 @@ export function StudentSearchBar({
 
   return (
     <div ref={containerRef} className="relative w-full">
+      {/* Hidden input preserves student_id on native form submission */}
+      <input type="hidden" name="student_id" value={selectedStudentId} />
+
       <div className="relative">
         <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -113,7 +141,11 @@ export function StudentSearchBar({
         <input
           name="q"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            // If user changes text, reset selectedStudentId so fresh search runs
+            if (selectedStudentId) setSelectedStudentId("");
+          }}
           onFocus={() => {
             if (suggestions.length > 0) setIsOpen(true);
           }}
@@ -135,6 +167,7 @@ export function StudentSearchBar({
             type="button"
             onClick={() => {
               setQuery("");
+              setSelectedStudentId("");
               setSuggestions([]);
               setIsOpen(false);
             }}
@@ -159,6 +192,10 @@ export function StudentSearchBar({
               return (
                 <li
                   key={s.id}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleSelect(s);
+                  }}
                   onClick={() => handleSelect(s)}
                   onMouseEnter={() => setSelectedIndex(idx)}
                   className={`flex items-center justify-between gap-3 px-4 py-2.5 cursor-pointer transition ${
@@ -195,4 +232,3 @@ export function StudentSearchBar({
     </div>
   );
 }
-

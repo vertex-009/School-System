@@ -72,7 +72,7 @@ export function GenerateInvoicesCard({
             ) : (
               <>
                 <Link href={`/finance/collect?month=${month}&year=${year}`} className="underline">
-                  Collect cash
+                  Fee collection
                 </Link>
                 {" · "}
                 <Link href={`/finance/fee-records?tab=unpaid&month=${month}&year=${year}`} className="underline">

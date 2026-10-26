@@ -1938,7 +1938,7 @@ export async function saveAnnouncement(formData: FormData) {
   const allowedByRole: Record<string, string[]> = {
     principal: ["all", "finance", "teachers", "teacher"],
     teacher: ["principal", "finance", "teacher"],
-    finance: ["principal", "teachers"],
+    finance: ["principal", "teachers", "teacher"],
   };
   const allowed = allowedByRole[profile.role] || [];
   for (const audience of audiences) {

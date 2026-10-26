@@ -18,6 +18,22 @@ export interface TeacherAnnouncementItem {
   fee_year?: number | null;
 }
 
+function formatDate(iso: string) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  } catch {
+    return iso;
+  }
+}
+
 export function TeacherAnnouncementsClient({
   received,
   sent,
@@ -338,35 +354,61 @@ export function TeacherAnnouncementsClient({
 
           {/* Received Announcements Card */}
           <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
-            <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-2.5">
+            <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <span className="text-base">📥</span>
-                <h3 className="text-sm font-bold text-[#0b1f3a]">Received Announcements</h3>
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-100 text-sky-800 text-xs font-bold">
+                  📥
+                </span>
+                <h3 className="text-sm font-extrabold text-[#0b1f3a]">Received Announcements</h3>
               </div>
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">
-                {received.length} post{received.length !== 1 ? "s" : ""}
+              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-600">
+                {received.length} received
               </span>
             </div>
 
-            <ul className="space-y-3">
-              {received.map((item) => (
-                <li key={item.id} className="rounded-2xl border border-slate-100 bg-slate-50/40 p-4 text-sm">
-                  <div className="flex items-center justify-between gap-2">
-                    <b className="text-brand-navy">{item.title}</b>
-                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
-                      From {getSenderLabel(item.created_by)}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                    {getAudienceLabel(item.audience, item.target_teacher_id)}
-                    {item.kind === "fee_open" && item.fee_month && item.fee_year
-                      ? ` · Fee month ${MONTHS[item.fee_month - 1]} ${item.fee_year}`
-                      : ""}
-                  </p>
-                  <p className="mt-2 whitespace-pre-wrap text-slate-600 text-xs sm:text-sm">{item.body}</p>
-                  <p className="mt-2 text-[11px] text-slate-400">{new Date(item.created_at).toLocaleString()}</p>
-                </li>
-              ))}
+            <ul className="space-y-4">
+              {received.map((item) => {
+                const senderName = getSenderLabel(item.created_by);
+                const audienceTag = getAudienceLabel(item.audience, item.target_teacher_id);
+                const fee = item.kind === "fee_open" && item.fee_month && item.fee_year
+                  ? `${MONTHS[item.fee_month - 1]} ${item.fee_year}`
+                  : null;
+
+                return (
+                  <li
+                    key={item.id}
+                    className="rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 sm:p-5 shadow-2xs transition hover:border-slate-300"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/70 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-slate-500">From:</span>
+                        <b className="text-sm font-black text-[#0b1f3a]">{senderName}</b>
+                        <span className="rounded-md bg-sky-50 border border-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-800">
+                          {audienceTag}
+                        </span>
+                        {fee && (
+                          <span className="rounded-md bg-amber-50 border border-amber-200/80 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                            Fee {fee}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] font-semibold text-slate-400">
+                        {formatDate(item.created_at)}
+                      </span>
+                    </div>
+
+                    <div className="mt-3">
+                      <h4 className="text-sm sm:text-base font-extrabold text-[#0b1f3a]">
+                        {item.title}
+                      </h4>
+                    </div>
+
+                    <div className="mt-2.5 rounded-xl border border-slate-200/90 bg-white p-3.5 sm:p-4 text-xs sm:text-sm text-slate-800 leading-relaxed whitespace-pre-wrap font-normal shadow-2xs">
+                      {item.body}
+                    </div>
+                  </li>
+                );
+              })}
               {!received.length && (
                 <p className="py-6 text-center text-xs text-slate-400">No announcements received for you yet.</p>
               )}
@@ -375,41 +417,64 @@ export function TeacherAnnouncementsClient({
 
           {/* Sent by you Card */}
           <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
-            <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-2.5">
+            <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <span className="text-base">📤</span>
-                <h3 className="text-sm font-bold text-[#0b1f3a]">Sent by you</h3>
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-100 text-rose-700 text-xs font-bold">
+                  📤
+                </span>
+                <h3 className="text-sm font-extrabold text-[#0b1f3a]">Sent Announcements</h3>
               </div>
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">
-                {sent.length} post{sent.length !== 1 ? "s" : ""}
+              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-600">
+                {sent.length} sent
               </span>
             </div>
 
-            <ul className="space-y-3">
-              {sent.map((item) => (
-                <li key={item.id} className="rounded-2xl border border-slate-100 bg-slate-50/40 p-4 text-sm">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <b className="text-brand-navy">{item.title}</b>
-                      <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                        {getAudienceLabel(item.audience, item.target_teacher_id)}
-                      </p>
+            <ul className="space-y-4">
+              {sent.map((item) => {
+                const recipient = getAudienceLabel(item.audience, item.target_teacher_id);
+
+                return (
+                  <li
+                    key={item.id}
+                    className="rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 sm:p-5 shadow-2xs transition hover:border-slate-300"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/70 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-slate-500">To:</span>
+                        <b className="text-sm font-black text-[#0b1f3a]">{recipient}</b>
+                        <span className="rounded-full bg-rose-50 border border-rose-200/80 px-2 py-0.5 text-[10px] font-bold text-rose-700">
+                          Sent
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-[11px] font-semibold text-slate-400">
+                          {formatDate(item.created_at)}
+                        </span>
+                        {!readOnly && (
+                          <form action={deleteAnnouncement.bind(null, item.id)}>
+                            <button
+                              type="submit"
+                              className="rounded-lg border border-rose-200 bg-white px-2.5 py-1 text-xs font-bold text-rose-600 hover:bg-rose-50 transition cursor-pointer shadow-2xs"
+                            >
+                              Delete
+                            </button>
+                          </form>
+                        )}
+                      </div>
                     </div>
-                    {!readOnly && (
-                      <form action={deleteAnnouncement.bind(null, item.id)}>
-                        <button
-                          type="submit"
-                          className="rounded-lg border border-rose-200 bg-white px-2.5 py-1 text-xs font-bold text-rose-600 hover:bg-rose-50 transition cursor-pointer shadow-2xs"
-                        >
-                          Delete
-                        </button>
-                      </form>
-                    )}
-                  </div>
-                  <p className="mt-2 whitespace-pre-wrap text-slate-600 text-xs sm:text-sm">{item.body}</p>
-                  <p className="mt-2 text-[11px] text-slate-400">{new Date(item.created_at).toLocaleString()}</p>
-                </li>
-              ))}
+
+                    <div className="mt-3">
+                      <h4 className="text-sm sm:text-base font-extrabold text-[#0b1f3a]">
+                        {item.title}
+                      </h4>
+                    </div>
+
+                    <div className="mt-2.5 rounded-xl border border-slate-200/90 bg-white p-3.5 sm:p-4 text-xs sm:text-sm text-slate-800 leading-relaxed whitespace-pre-wrap font-normal shadow-2xs">
+                      {item.body}
+                    </div>
+                  </li>
+                );
+              })}
               {!sent.length && (
                 <p className="py-6 text-center text-xs text-slate-400">You have not sent any announcements yet.</p>
               )}

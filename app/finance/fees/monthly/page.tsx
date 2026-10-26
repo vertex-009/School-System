@@ -7,9 +7,8 @@ export default async function MonthlyReportPage({
 }) {
   const sp = await searchParams;
   const p = new URLSearchParams();
+  p.set("tab", "fees");
   if (sp.month) p.set("month", sp.month);
   if (sp.year) p.set("year", sp.year);
-  const q = p.toString();
-  redirect(`/finance/history${q ? `?${q}` : ""}`);
+  redirect(`/finance/income-vs-expenses?${p.toString()}`);
 }
-

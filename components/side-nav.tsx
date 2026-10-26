@@ -33,8 +33,7 @@ const MENUS: Record<ShellRole, NavItem[]> = {
     { href: "/finance/other-employees", label: "Other employees" },
     { href: "/finance/students", label: "Students" },
     { href: "/finance/assign", label: "Assign teacher" },
-    { href: "/finance/collect", label: "Collect cash" },
-    { href: "/finance/history", label: "Collection history" },
+    { href: "/finance/collect", label: "Fee collection" },
     { href: "/finance/expenses", label: "Other expenses" },
     { href: "/finance/income-vs-expenses", label: "Financial summary" },
     { href: "/finance/announcements", label: "Announcements" },
@@ -99,7 +98,10 @@ function leafActive(pathname: string, href: string) {
   if (baseHref === "/finance/salaries" && pathname.startsWith("/finance/salaries")) {
     return true;
   }
-  if (baseHref === "/finance/income-vs-expenses" && (pathname.startsWith("/finance/income-vs-expenses") || pathname.startsWith("/finance/account"))) {
+  if (baseHref === "/finance/collect" && pathname.startsWith("/finance/collect")) {
+    return true;
+  }
+  if (baseHref === "/finance/income-vs-expenses" && (pathname.startsWith("/finance/income-vs-expenses") || pathname.startsWith("/finance/account") || pathname.startsWith("/finance/history"))) {
     return true;
   }
   if (baseHref === "/principal/fees/overview" && (pathname.startsWith("/principal/fees/overview") || pathname.startsWith("/principal/account"))) {

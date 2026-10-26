@@ -16,7 +16,8 @@ export async function GET(request: Request) {
     }
 
     // Clean query
-    const clean = q.replace(/[%_\\]/g, "");
+    const clean = q.replace(/[%_\\]/g, "").trim();
+    const digits = clean.replace(/\D/g, "");
 
     // Search query on students table
     let query = supabase
@@ -25,11 +26,13 @@ export async function GET(request: Request) {
       .eq("school_id", schoolId)
       .eq("status", "active");
 
-    if (/^\d+$/.test(clean)) {
-      // Numerical: roll number or admission number
-      query = query.or(`roll_no.eq.${clean},admission_no.ilike.%${clean}%,name.ilike.%${clean}%`);
+    if (digits) {
+      // If query has digits (e.g. "42", "ADM-42", "Roll 5"):
+      query = query.or(
+        `roll_no.eq.${digits},admission_no.ilike.%${digits}%,admission_no.ilike.%${clean}%,name.ilike.%${clean}%,father_name.ilike.%${clean}%`
+      );
     } else {
-      // Text: name, father_name, or admission_no
+      // Text only: name, father_name, or admission_no
       query = query.or(`name.ilike.%${clean}%,father_name.ilike.%${clean}%,admission_no.ilike.%${clean}%`);
     }
 
