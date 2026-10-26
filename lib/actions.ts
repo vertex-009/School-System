@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getSupabaseUrl } from "@/lib/supabase/config";
 import { clearSessionCookies, getContext, homeFor, writeSessionCookies, type Role } from "@/lib/session";
 
 function fail(error: { message: string } | null) { if (error) throw new Error(error.message); }
@@ -358,7 +359,7 @@ export async function adminResetTeacherPassword(teacherId: string, newPassword: 
   // 1. If service role key is present in env, use Supabase admin auth
   if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
     const { createClient: createAdminClient } = await import("@supabase/supabase-js");
-    const admin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+    const admin = createAdminClient(getSupabaseUrl(), process.env.SUPABASE_SERVICE_ROLE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
     const { error: adminErr } = await admin.auth.admin.updateUserById(teacherId, { password: cleanPass });

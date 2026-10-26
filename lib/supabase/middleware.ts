@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { getSupabaseUrl, getSupabaseKey } from "./config";
 
 function hasSupabaseAuthCookie(request: NextRequest) {
   return request.cookies.getAll().some((c) => c.name.startsWith("sb-") && c.name.includes("auth-token"));
@@ -113,12 +114,8 @@ export async function updateSession(request: NextRequest) {
   }
 
   let supabaseResponse = NextResponse.next({ request });
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://cfjfbxnldnjuzrqpaibw.supabase.co";
-  const key =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    process.env.SUPABASE_ANON_KEY ||
-    "sb_publishable_AF694i2Wo6xtJAAk0kEEVQ_E2x12QSY";
+  const url = getSupabaseUrl();
+  const key = getSupabaseKey();
 
   const supabase = createServerClient(
     url,
