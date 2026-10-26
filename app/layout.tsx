@@ -3,8 +3,8 @@ import { SCHOOL } from "@/lib/brand";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: `${SCHOOL.name} · Portal`,
-  description: `${SCHOOL.fullName}, ${SCHOOL.city} — school management portal`,
+  title: `${SCHOOL.name} · Staff Portal`,
+  description: `${SCHOOL.name} & College, Abbottabad — private staff platform for principal, finance, and teachers.`,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
