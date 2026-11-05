@@ -20,6 +20,7 @@ export default async function PrincipalOtherEmployeesPage({
   const { supabase, schoolId, profile, readOnly } = await getContext();
   if (profile.role !== "principal" || !schoolId) redirect("/");
 
+  const t0 = performance.now();
   const [{ data: employees, error }, { data: payments }] = await Promise.all([
     supabase
       .from("other_employees")
@@ -35,6 +36,8 @@ export default async function PrincipalOtherEmployeesPage({
           .eq("month", period.month)
           .eq("year", period.year),
   ]);
+  const t1 = performance.now();
+  console.log(`[PERF] /principal/employees data fetched in ${(t1 - t0).toFixed(1)}ms`);
 
   const all = error ? [] : employees || [];
   const paidMap = Object.fromEntries((payments || []).map((p) => [p.employee_id, p]));

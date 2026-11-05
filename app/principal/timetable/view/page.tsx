@@ -14,13 +14,20 @@ export default async function ViewTimetablePage({ searchParams }: { searchParams
   if (!schoolId) redirect("/");
   const sp = await searchParams;
 
+  const t0 = performance.now();
   // Settings + catalog + all slot section ids in one round-trip (avoids separate count + section_id queries).
   const [{ data: settingsRow }, { data: classesRaw }, { data: sectionsRaw }, { data: slotted }] = await Promise.all([
-    supabase.from("timetable_settings").select("*").eq("school_id", schoolId).maybeSingle(),
+    supabase
+      .from("timetable_settings")
+      .select("day_start, day_end, period_minutes, break_after_period, break_minutes, working_days, periods_per_day, num_rooms, max_teacher_periods_per_day, periods_per_subject_week")
+      .eq("school_id", schoolId)
+      .maybeSingle(),
     supabase.from("classes").select("id, name, sort_order").eq("school_id", schoolId).order("sort_order").order("name"),
     supabase.from("sections").select("id, name, class_id").eq("school_id", schoolId).order("name"),
     supabase.from("timetable_slots").select("section_id, plan_status").eq("school_id", schoolId),
   ]);
+  const t1 = performance.now();
+  console.log(`[PERF] /principal/timetable/view data fetched in ${(t1 - t0).toFixed(1)}ms`);
 
   const settings = mergeSettings(settingsRow as any);
   const preferDraft = (slotted || []).some((r) => r.plan_status === "draft");

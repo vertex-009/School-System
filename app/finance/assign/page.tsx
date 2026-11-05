@@ -16,6 +16,7 @@ export default async function FinanceAssignPage({
   const { supabase, schoolId, readOnly, profile } = await getContext();
   if (profile.role !== "finance" || !schoolId) redirect("/");
 
+  const t0 = performance.now();
   const [
     { data: teachers },
     { data: classes },
@@ -50,6 +51,9 @@ export default async function FinanceAssignPage({
       .select("id, teacher_id, sections(id, name, classes(name)), subjects(id, name)")
       .eq("school_id", schoolId),
   ]);
+
+  const t1 = performance.now();
+  console.log(`[PERF] /finance/assign data fetched in ${(t1 - t0).toFixed(1)}ms`);
 
   const secMap = primarySectionIdByClass(sections || []);
 

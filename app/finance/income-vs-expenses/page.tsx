@@ -42,6 +42,7 @@ export default async function FinanceFinancialSummaryPage({
 
   const { monthStart, monthEnd, dayStart, dayEnd } = periodBounds(period.month, period.year);
 
+  const t0 = performance.now();
   const [
     { data: school },
     { data: invoices },
@@ -101,6 +102,9 @@ export default async function FinanceFinancialSummaryPage({
       .eq("month", period.month)
       .eq("year", period.year),
   ]);
+
+  const t1 = performance.now();
+  console.log(`[PERF] /finance/income-vs-expenses data fetched in ${(t1 - t0).toFixed(1)}ms`);
 
   // Auto-ensure invoices if none exist for this past/current month
   let rawInvoices = invoices;

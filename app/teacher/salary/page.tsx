@@ -15,6 +15,7 @@ export default async function TeacherSalaryPage({
   const sp = searchParams ? await searchParams : undefined;
   const period = parsePeriod(sp);
 
+  const t0 = performance.now();
   const [
     { data: me },
     { data: salaryRow },
@@ -48,6 +49,8 @@ export default async function TeacherSalaryPage({
       .order("year", { ascending: false })
       .order("month", { ascending: false }),
   ]);
+  const t1 = performance.now();
+  console.log(`[PERF] /teacher/salary data fetched in ${(t1 - t0).toFixed(1)}ms`);
 
   const monthly = Number(salaryRow?.monthly_salary || 0);
   const joinedOn = me?.joined_on || (me as any)?.created_at || null;

@@ -17,6 +17,7 @@ export default async function FinanceTeachersListPage({
   const { supabase, schoolId, profile } = await getContext();
   if (profile.role !== "finance" || !schoolId) redirect("/");
 
+  const t0 = performance.now();
   const [{ data: teachers }, { data: salaries }, { data: payments }] = await Promise.all([
     supabase
       .from("profiles")
@@ -34,6 +35,8 @@ export default async function FinanceTeachersListPage({
           .eq("month", period.month)
           .eq("year", period.year),
   ]);
+  const t1 = performance.now();
+  console.log(`[PERF] /finance/teachers/list data fetched in ${(t1 - t0).toFixed(1)}ms`);
 
   const all = teachers || [];
   const teacherId = sp.teacher_id && all.some((t) => t.id === sp.teacher_id) ? sp.teacher_id : "";

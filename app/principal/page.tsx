@@ -28,25 +28,15 @@ async function loadPrincipalDash(
 ): Promise<DashNums> {
   const { monthStart, monthEnd, dayStart, dayEnd } = periodBounds(month, year);
 
-  // Auto-ensure invoices first if not a future month (matching Finance dashboard)
+  const t0 = performance.now();
   const now = new Date();
   const isFuture = year * 12 + month > now.getFullYear() * 12 + (now.getMonth() + 1);
-  if (!isFuture) {
-    const { ensureCurrentMonthInvoices } = await import("@/lib/fee-invoices");
-    await ensureCurrentMonthInvoices(supabase, { month, year, dueDay: 10 });
-  }
-
-  // Try RPC if available for current month
   const isCurrentMonth = month === now.getMonth() + 1 && year === now.getFullYear();
-  let rpcData: Record<string, unknown> | null = null;
-  if (isCurrentMonth) {
-    const { data: rpcRes } = await supabase.rpc("get_principal_dashboard");
-    if (rpcRes && typeof rpcRes === "object" && "paid" in rpcRes) {
-      rpcData = rpcRes as Record<string, unknown>;
-    }
-  }
+  const { ensureCurrentMonthInvoices } = await import("@/lib/fee-invoices");
 
   const [
+    ,
+    rpcRes,
     { count: students },
     { count: teachers },
     { count: left_students },
@@ -57,6 +47,8 @@ async function loadPrincipalDash(
     { data: invRows },
     { data: expRows },
   ] = await Promise.all([
+    !isFuture ? ensureCurrentMonthInvoices(supabase, { month, year, dueDay: 10 }) : Promise.resolve(null),
+    isCurrentMonth ? supabase.rpc("get_principal_dashboard") : Promise.resolve({ data: null }),
     supabase
       .from("students")
       .select("id", { count: "exact", head: true })
@@ -107,6 +99,13 @@ async function loadPrincipalDash(
       .gte("expense_date", dayStart)
       .lt("expense_date", dayEnd),
   ]);
+
+  const rpcData = (rpcRes && typeof rpcRes === "object" && "data" in rpcRes && rpcRes.data && typeof rpcRes.data === "object" && "paid" in rpcRes.data)
+    ? (rpcRes.data as Record<string, unknown>)
+    : null;
+
+  const t1 = performance.now();
+  console.log(`[PERF] /principal dashboard data fetched in ${(t1 - t0).toFixed(1)}ms`);
 
   const currentInvRows = invRows || [];
 

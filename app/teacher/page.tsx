@@ -94,6 +94,7 @@ export default async function TeacherHome({
   const thisYear = period.year;
   const firstName = profile.name.split(" ")[0] || "Teacher";
 
+  const t0 = performance.now();
   const [
     { data: dash, error: dashErr },
     { data: settingsRow },
@@ -103,7 +104,11 @@ export default async function TeacherHome({
     { data: thisPay },
   ] = await Promise.all([
     supabase.rpc("get_teacher_dashboard"),
-    supabase.from("timetable_settings").select("*").eq("school_id", schoolId).maybeSingle(),
+    supabase
+      .from("timetable_settings")
+      .select("day_start, day_end, period_minutes, break_after_period, break_minutes, working_days, periods_per_day, num_rooms, max_teacher_periods_per_day, periods_per_subject_week")
+      .eq("school_id", schoolId)
+      .maybeSingle(),
     supabase
       .from("timetable_slots")
       .select("day_of_week, period_number, room_number, subjects(name), sections(name, classes(name))")
@@ -142,6 +147,9 @@ export default async function TeacherHome({
         .eq("status", "active")
         .in("section_id", sectionIds)
     : { count: 0 };
+
+  const t1 = performance.now();
+  console.log(`[PERF] /teacher data fetched in ${(t1 - t0).toFixed(1)}ms`);
 
   const settings = mergeSettings(settingsRow as any);
   const ttCells = (ttSlots || []).map((row: any) => ({

@@ -14,6 +14,7 @@ export default async function TeacherClassesPage({
 
   const sp = searchParams ? await searchParams : undefined;
 
+  const t0 = performance.now();
   const [classesData, { data: studentsData }] = await Promise.all([
     getTeacherClasses(supabase, schoolId, profile.id),
     supabase
@@ -23,6 +24,8 @@ export default async function TeacherClassesPage({
       .eq("status", "active")
       .order("roll_no", { ascending: true }),
   ]);
+  const t1 = performance.now();
+  console.log(`[PERF] /teacher/classes data fetched in ${(t1 - t0).toFixed(1)}ms`);
 
   const studentsBySection: Record<string, { id: string; name: string; roll_no: string | null; admission_no: string | null; father_name: string | null }[]> = {};
   for (const s of studentsData || []) {

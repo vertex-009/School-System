@@ -61,6 +61,15 @@ function fullPrefetch(router: ReturnType<typeof useRouter>, href: string) {
   router.prefetch(href, { kind: PrefetchKind.FULL });
 }
 
+function hoverPrefetch(router: ReturnType<typeof useRouter>, href: string) {
+  try {
+    // Fresh prefetch on user interaction (hover / focus / touch)
+    router.prefetch(href);
+  } catch {
+    /* ignore */
+  }
+}
+
 function flattenHrefs(items: NavItem[]): string[] {
   return items.flatMap((item) => (isGroup(item) ? item.children.map((c) => c.href) : [item.href]));
 }
@@ -189,16 +198,20 @@ export function SideNav({
   }, [pathname, items]);
 
   useEffect(() => {
-    // Only desktop instance warms the whole menu (mobile still hover/touch-prefetches).
-    if (variant !== "side") return;
-
     const hrefs = allHrefs.filter((h) => h !== pathname);
 
-    // Immediate FULL warm of every sidebar route — no idle queue gaps.
+    if (variant === "side") {
+      // Desktop: immediate FULL warm of every sidebar route.
+      const start = window.setTimeout(() => {
+        for (const href of hrefs) fullPrefetch(router, href);
+      }, 30);
+      return () => clearTimeout(start);
+    }
+
+    // Mobile: also warm all routes (slightly delayed) so first tap is instant.
     const start = window.setTimeout(() => {
       for (const href of hrefs) fullPrefetch(router, href);
-    }, 30);
-
+    }, 150);
     return () => clearTimeout(start);
   }, [variant, role, pathname, router, allHrefs]);
 
@@ -228,12 +241,12 @@ export function SideNav({
     <Link
       key={href}
       href={href}
-      prefetch
-      onMouseEnter={() => fullPrefetch(router, href)}
-      onFocus={() => fullPrefetch(router, href)}
-      onTouchStart={() => fullPrefetch(router, href)}
+      prefetch={true}
+      onMouseEnter={() => hoverPrefetch(router, href)}
+      onFocus={() => hoverPrefetch(router, href)}
+      onTouchStart={() => hoverPrefetch(router, href)}
       onClick={() => {
-        fullPrefetch(router, href);
+        hoverPrefetch(router, href);
         onNavigate?.();
       }}
       className={className}

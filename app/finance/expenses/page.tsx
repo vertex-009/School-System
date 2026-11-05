@@ -17,6 +17,7 @@ export default async function SchoolExpensesPage({
   const { dayStart, dayEnd } = periodBounds(period.month, period.year);
   const today = new Date().toISOString().slice(0, 10);
 
+  const t0 = performance.now();
   const [{ data: rows }, { data: school }] = await Promise.all([
     supabase
       .from("school_expenses")
@@ -32,6 +33,8 @@ export default async function SchoolExpensesPage({
       .eq("id", schoolId)
       .maybeSingle(),
   ]);
+  const t1 = performance.now();
+  console.log(`[PERF] /finance/expenses data fetched in ${(t1 - t0).toFixed(1)}ms`);
 
   const list = (rows || []) as ExpenseItem[];
 

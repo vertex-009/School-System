@@ -14,20 +14,44 @@ export default async function TeacherStudentsPage({
   const { supabase, profile, schoolId } = await getContext();
   if (profile.role !== "teacher" || !schoolId) redirect("/");
 
-  const classes = await getTeacherClasses(supabase, schoolId, profile.id);
-  const sectionId = section_id && classes.some((c) => c.sectionId === section_id) ? section_id : classes[0]?.sectionId || "";
-  const active = classes.find((c) => c.sectionId === sectionId);
+  const t0 = performance.now();
+  let classes: Awaited<ReturnType<typeof getTeacherClasses>>;
+  let students: any[] = [];
+  let sectionId = section_id || "";
 
-  const { data: students } = sectionId
-    ? await supabase
+  if (section_id) {
+    const [cData, sData] = await Promise.all([
+      getTeacherClasses(supabase, schoolId, profile.id),
+      supabase
+        .from("students")
+        .select("id, name, admission_no, roll_no, father_name, guardian_phone, gender, status")
+        .eq("section_id", section_id)
+        .eq("school_id", schoolId)
+        .eq("status", "active")
+        .order("roll_no", { ascending: true, nullsFirst: false })
+        .order("name"),
+    ]);
+    classes = cData;
+    students = sData.data || [];
+  } else {
+    classes = await getTeacherClasses(supabase, schoolId, profile.id);
+    sectionId = classes[0]?.sectionId || "";
+    if (sectionId) {
+      const { data: sData } = await supabase
         .from("students")
         .select("id, name, admission_no, roll_no, father_name, guardian_phone, gender, status")
         .eq("section_id", sectionId)
         .eq("school_id", schoolId)
         .eq("status", "active")
         .order("roll_no", { ascending: true, nullsFirst: false })
-        .order("name")
-    : { data: [] };
+        .order("name");
+      students = sData || [];
+    }
+  }
+
+  const active = classes.find((c) => c.sectionId === sectionId);
+  const t1 = performance.now();
+  console.log(`[PERF] /teacher/students data fetched in ${(t1 - t0).toFixed(1)}ms`);
 
   const list = students || [];
 

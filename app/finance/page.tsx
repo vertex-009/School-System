@@ -133,12 +133,13 @@ export default async function FinanceHome({
   const { supabase, schoolId, profile } = await getContext();
   if (profile.role !== "finance" || !schoolId) redirect("/");
 
-  if (!period.isFuture) {
-    const { ensureCurrentMonthInvoices } = await import("@/lib/fee-invoices");
-    await ensureCurrentMonthInvoices(supabase, { month: period.month, year: period.year, dueDay: 10 });
-  }
+  const t0 = performance.now();
+  const { ensureCurrentMonthInvoices } = await import("@/lib/fee-invoices");
 
-  const [{ data, error }, { data: mySalaryRow }, { data: myPaymentRow }] = await Promise.all([
+  const [, { data, error }, { data: mySalaryRow }, { data: myPaymentRow }] = await Promise.all([
+    !period.isFuture
+      ? ensureCurrentMonthInvoices(supabase, { month: period.month, year: period.year, dueDay: 10 })
+      : Promise.resolve(null),
     supabase.rpc("get_finance_dashboard"),
     supabase
       .from("teacher_salaries")
@@ -155,6 +156,9 @@ export default async function FinanceHome({
       .eq("year", period.year)
       .maybeSingle(),
   ]);
+
+  const t1 = performance.now();
+  console.log(`[PERF] /finance data fetched in ${(t1 - t0).toFixed(1)}ms`);
 
   if (error) {
     throw new Error(

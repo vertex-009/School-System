@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type TeacherSubject = { id: string; name: string };
@@ -10,8 +11,8 @@ export type TeacherClass = {
   subjectEntries: TeacherSubject[];
 };
 
-/** Classes from principal/finance assignments ∪ timetable slots for this teacher. */
-export async function getTeacherClasses(
+/** Classes from principal/finance assignments ∪ timetable slots for this teacher. Deduplicated per request with React cache. */
+export const getTeacherClasses = cache(async function getTeacherClasses(
   supabase: SupabaseClient,
   schoolId: string,
   teacherId: string
@@ -69,4 +70,4 @@ export async function getTeacherClasses(
   return [...map.values()]
     .filter((c) => c.subjects.length > 0)
     .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
-}
+});

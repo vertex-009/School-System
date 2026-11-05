@@ -9,7 +9,11 @@ export default async function MakeTimetablePage() {
   if (!schoolId) redirect("/");
 
   const [{ data: settingsRow }, { data: classesRaw }, { data: sectionsRaw }, { data: subjectsRaw }] = await Promise.all([
-    supabase.from("timetable_settings").select("*").eq("school_id", schoolId).maybeSingle(),
+    supabase
+      .from("timetable_settings")
+      .select("day_start, day_end, period_minutes, break_after_period, break_minutes, working_days, periods_per_day, num_rooms, max_teacher_periods_per_day, periods_per_subject_week")
+      .eq("school_id", schoolId)
+      .maybeSingle(),
     supabase.from("classes").select("id, name, sort_order").eq("school_id", schoolId).order("sort_order").order("name"),
     supabase.from("sections").select("id, class_id").eq("school_id", schoolId),
     supabase.from("subjects").select("id, name").eq("school_id", schoolId).order("name"),

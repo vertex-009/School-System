@@ -10,8 +10,13 @@ export default async function TeacherTimetablePage() {
   const { supabase, profile, schoolId } = await getContext();
   if (profile.role !== "teacher" || !schoolId) redirect("/");
 
+  const t0 = performance.now();
   const [{ data: settingsRow }, { data: slots }] = await Promise.all([
-    supabase.from("timetable_settings").select("*").eq("school_id", schoolId).maybeSingle(),
+    supabase
+      .from("timetable_settings")
+      .select("day_start, day_end, period_minutes, break_after_period, break_minutes, working_days, periods_per_day, num_rooms, max_teacher_periods_per_day, periods_per_subject_week")
+      .eq("school_id", schoolId)
+      .maybeSingle(),
     supabase
       .from("timetable_slots")
       .select("day_of_week, period_number, room_number, subjects(name), sections(name, classes(name))")
@@ -21,6 +26,8 @@ export default async function TeacherTimetablePage() {
       .order("day_of_week")
       .order("period_number"),
   ]);
+  const t1 = performance.now();
+  console.log(`[PERF] /teacher/timetable data fetched in ${(t1 - t0).toFixed(1)}ms`);
 
   const settings = mergeSettings(settingsRow as any);
   const cells = (slots || []).map((row: any) => ({

@@ -106,7 +106,9 @@ export async function updateSession(request: NextRequest) {
 
   const exp = readExpiresAt(request);
   const now = Math.floor(Date.now() / 1000);
-  const needsRefresh = exp === null || exp - now < 120;
+  // Only refresh when token is truly expired or within 10 seconds of expiry.
+  // Avoid network getUser() on normal navigation.
+  const needsRefresh = exp !== null && exp - now <= 10;
 
   // Happy path: token still valid → no Supabase round-trip.
   if (!needsRefresh) {

@@ -41,11 +41,14 @@ export default async function AnnouncementHistoryPage() {
   const { supabase, schoolId, readOnly } = await getContext();
   if (!schoolId) redirect("/");
 
+  const t0 = performance.now();
   const { data: items } = await supabase
     .from("announcements")
     .select("id, title, body, created_at, audience, target_teacher_id, created_by, kind, fee_month, fee_year")
     .eq("school_id", schoolId)
     .order("created_at", { ascending: false });
+  const t1 = performance.now();
+  console.log(`[PERF] /principal/announcements/history data fetched in ${(t1 - t0).toFixed(1)}ms`);
 
   const list = items || [];
   const profileIds = [

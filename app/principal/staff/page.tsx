@@ -17,6 +17,7 @@ export default async function StaffPage({
   const { supabase, schoolId } = await getContext();
   if (!schoolId) redirect("/");
 
+  const t0 = performance.now();
   const [{ data: staff }, { data: salaries }, { data: payments }] = await Promise.all([
     supabase
       .from("profiles")
@@ -34,6 +35,8 @@ export default async function StaffPage({
           .eq("month", period.month)
           .eq("year", period.year),
   ]);
+  const t1 = performance.now();
+  console.log(`[PERF] /principal/staff data fetched in ${(t1 - t0).toFixed(1)}ms`);
 
   const all = staff || [];
   const salaryMap = Object.fromEntries((salaries || []).map((s) => [s.teacher_id, Number(s.monthly_salary)]));

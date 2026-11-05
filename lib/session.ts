@@ -54,19 +54,27 @@ export async function clearSessionCookies() {
   jar.delete("sms_open_school");
 }
 
+/** Cached session cookie state to share between layout and page in a single request */
+export const getSessionAuth = cache(async () => {
+  const jar = await cookies();
+  const role = jar.get("sms_role")?.value as Role | undefined;
+  const userActive = jar.get("sms_user_active")?.value !== "0";
+  const schoolActive = jar.get("sms_school_active")?.value !== "0";
+  const cachedProfile = jar.get("sms_profile")?.value;
+  return { role, userActive, schoolActive, cachedProfile };
+});
+
 /**
  * Fast path: use sms_profile cookie — skip auth.getSession() network call.
  * Supabase client still attached for DB (JWT from cookies).
  */
 export const getContext = cache(async () => {
-  const jar = await cookies();
-  const schoolActive = jar.get("sms_school_active")?.value !== "0";
-  const cached = jar.get("sms_profile")?.value;
+  const { schoolActive, cachedProfile } = await getSessionAuth();
   const supabase = await createClient();
 
-  if (cached) {
+  if (cachedProfile) {
     try {
-      const profile = JSON.parse(cached) as AppProfile;
+      const profile = JSON.parse(cachedProfile) as AppProfile;
       if (profile?.id && profile.role) {
         return {
           supabase,
@@ -112,13 +120,10 @@ export function homeFor(role: Role, _openSchool?: string | null) {
   return "/login";
 }
 
-export async function requireRoleCookie(allowed: Role | Role[]) {
-  const jar = await cookies();
-  const role = jar.get("sms_role")?.value as Role | undefined;
+export const requireRoleCookie = cache(async (allowed: Role | Role[]) => {
+  const { role, userActive, schoolActive } = await getSessionAuth();
   const list = Array.isArray(allowed) ? allowed : [allowed];
   if (!role || !list.includes(role)) redirect("/login");
-  const userActive = jar.get("sms_user_active")?.value !== "0";
-  const schoolActive = jar.get("sms_school_active")?.value !== "0";
   if (!userActive || !schoolActive) redirect("/suspended");
   return role;
-}
+});

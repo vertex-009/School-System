@@ -18,6 +18,7 @@ export default async function PrincipalStudentsPage({
   const { supabase, schoolId } = await getContext();
   if (!schoolId) redirect("/");
 
+  const t0 = performance.now();
   const [{ data: classes }, { data: sections }, { data: allStudents }] = await Promise.all([
     supabase.from("classes").select("id, name").eq("school_id", schoolId).order("sort_order").order("name"),
     supabase.from("sections").select("id, name, class_id, classes(name)").eq("school_id", schoolId),
@@ -133,6 +134,9 @@ export default async function PrincipalStudentsPage({
     const { filterStudentsBySearch } = await import("@/lib/search");
     list = q.trim() ? filterStudentsBySearch((students || []) as any[], q) : (students || []) as any[];
   }
+
+  const t1 = performance.now();
+  console.log(`[PERF] /principal/students data fetched in ${(t1 - t0).toFixed(1)}ms`);
 
   return (
     <Shell role="principal" title="Student Directory">

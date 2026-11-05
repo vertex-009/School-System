@@ -35,7 +35,7 @@ export default async function PrincipalStudentDetailPage({
   } else {
     const { data: rawStudent } = await supabase
       .from("students")
-      .select("*")
+      .select("id, name, roll_no, admission_no, father_name, guardian_phone, gender, status, section_id, photo_url, dob, address, monthly_fee, joined_on, cnic, family_code")
       .eq("id", id)
       .eq("school_id", schoolId)
       .maybeSingle();

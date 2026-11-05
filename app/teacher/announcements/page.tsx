@@ -7,6 +7,7 @@ export default async function TeacherAnnouncementsPage() {
   const { supabase, profile, schoolId, readOnly } = await getContext();
   if (profile.role !== "teacher" || !schoolId) redirect("/");
 
+  const t0 = performance.now();
   const [{ data: items, error }, { data: teachers }] = await Promise.all([
     supabase
       .from("announcements")
@@ -18,6 +19,8 @@ export default async function TeacherAnnouncementsPage() {
       .select("id, name, role")
       .eq("school_id", schoolId),
   ]);
+  const t1 = performance.now();
+  console.log(`[PERF] /teacher/announcements data fetched in ${(t1 - t0).toFixed(1)}ms`);
 
   const profileMap: Record<string, { name: string; role: string }> = {};
   const teachersList: { id: string; name: string }[] = [];

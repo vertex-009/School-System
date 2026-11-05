@@ -21,6 +21,7 @@ export default async function FinanceSalariesPage({
   ) as "all" | "pending" | "paid" | null;
 
   // Fetch all teacher profiles, other employees, salaries, and salary payments
+  const t0 = performance.now();
   const [
     { data: staffProfiles },
     { data: teacherSalaries },
@@ -55,6 +56,9 @@ export default async function FinanceSalariesPage({
       .eq("month", period.month)
       .eq("year", period.year),
   ]);
+
+  const t1 = performance.now();
+  console.log(`[PERF] /finance/salaries data fetched in ${(t1 - t0).toFixed(1)}ms`);
 
   const salaryMap = Object.fromEntries(
     (teacherSalaries || []).map((s) => [s.teacher_id, Number(s.monthly_salary || 0)])
